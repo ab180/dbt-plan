@@ -4,9 +4,9 @@
 
 dbt 버전의 `terraform plan`.
 
-## 왜 만들었나
+## 목표
 
-2026년 PII 대응 작업에서 `int_unified`의 VARIANT 컬럼을 제거했더니 `sync_all_columns` 설정으로 `ALTER TABLE DROP COLUMN`이 자동 실행되어 downstream 10+ 모델이 연쇄 파괴되었습니다. merge 전에 이를 감지할 수단이 없었습니다. dbt-plan은 PR 시점에 DDL 영향을 예측하여 이런 사고를 방지합니다.
+파괴적 DDL 변경(`DROP COLUMN` 등)이 프로덕션에 도달하기 전에 잡아냅니다. dbt의 `incremental` + `sync_all_columns`는 SELECT 컬럼이 바뀌면 자동으로 `ALTER TABLE`을 실행합니다. dbt-plan은 PR 시점에 이를 감지하고 merge를 차단합니다.
 
 ## 빠른 시작
 

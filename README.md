@@ -4,9 +4,9 @@ Preview what DDL changes `dbt run` will execute on Snowflake — before you run 
 
 Like `terraform plan` for dbt.
 
-## Why
+## Goal
 
-An `ALTER TABLE DROP COLUMN` via `sync_all_columns` cascaded to destroy 10+ downstream models in production. There was no way to detect this before merge. dbt-plan solves this by predicting DDL impact at PR time.
+Catch destructive DDL changes (like `DROP COLUMN`) before they reach production. dbt's `incremental` + `sync_all_columns` can silently execute `ALTER TABLE` when SELECT columns change. dbt-plan detects this at PR time and blocks the merge.
 
 ## Quick Start
 
