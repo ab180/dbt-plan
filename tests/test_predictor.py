@@ -103,13 +103,131 @@ class TestIncrementalAppendAndSync:
 
 
 class TestNewModel:
-    def test_new_model_no_base(self):
-        """New model (base_columns=None) → SAFE (no existing table to alter)."""
+    def test_new_model_added(self):
+        """New model (status=added) → SAFE (no existing table to alter)."""
         result = predict_ddl(
             model_name="new_model",
             materialization="incremental",
             on_schema_change="sync_all_columns",
             base_columns=None,
             current_columns=["a", "b"],
+            status="added",
         )
         assert result.safety == Safety.SAFE
+
+
+class TestRemovedModel:
+    def test_removed_model_destructive(self):
+        """Removed model → DESTRUCTIVE regardless of materialization."""
+        result = predict_ddl(
+            model_name="old_model",
+            materialization="table",
+            on_schema_change=None,
+            base_columns=["a", "b"],
+            current_columns=None,
+            status="removed",
+        )
+        assert result.safety == Safety.DESTRUCTIVE
+        assert any(op.operation == "MODEL REMOVED" for op in result.operations)
+
+    def test_removed_incremental_destructive(self):
+        """Removed incremental model → DESTRUCTIVE."""
+        result = predict_ddl(
+            model_name="old_inc",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            base_columns=["a"],
+            current_columns=None,
+            status="removed",
+        )
+        assert result.safety == Safety.DESTRUCTIVE
+
+
+class TestParseFailure:
+    def test_parse_failure_base_never_safe(self):
+        """Modified model with base parse failure → WARNING (never safe)."""
+        result = predict_ddl(
+            model_name="m",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            base_columns=None,
+            current_columns=["a", "b"],
+            status="modified",
+        )
+        assert result.safety == Safety.WARNING
+        assert any("REVIEW" in op.operation for op in result.operations)
+
+    def test_parse_failure_current_never_safe(self):
+        """Modified model with current parse failure → WARNING (never safe)."""
+        result = predict_ddl(
+            model_name="m",
+            materialization="incremental",
+            on_schema_change="append_new_columns",
+            base_columns=["a", "b"],
+            current_columns=None,
+            status="modified",
+        )
+        assert result.safety == Safety.WARNING
+
+    def test_parse_failure_both_never_safe(self):
+        """Modified model with both parse failures → WARNING."""
+        result = predict_ddl(
+            model_name="m",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            base_columns=None,
+            current_columns=None,
+            status="modified",
+        )
+        assert result.safety == Safety.WARNING
+
+
+class TestSelectStarWildcard:
+    def test_select_star_base_warning(self):
+        """SELECT * in base → WARNING (cannot diff columns)."""
+        result = predict_ddl(
+            model_name="m",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            base_columns=["*"],
+            current_columns=["a", "b"],
+        )
+        assert result.safety == Safety.WARNING
+        assert any("SELECT *" in op.operation for op in result.operations)
+
+    def test_select_star_current_warning(self):
+        """SELECT * in current → WARNING."""
+        result = predict_ddl(
+            model_name="m",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            base_columns=["a", "b"],
+            current_columns=["*"],
+        )
+        assert result.safety == Safety.WARNING
+
+
+class TestEphemeralAndUnknown:
+    def test_ephemeral_safe(self):
+        """Ephemeral model → SAFE, no operations."""
+        result = predict_ddl(
+            model_name="eph",
+            materialization="ephemeral",
+            on_schema_change=None,
+            base_columns=None,
+            current_columns=None,
+            status="added",
+        )
+        assert result.safety == Safety.SAFE
+        assert result.operations == []
+
+    def test_unknown_on_schema_change_warning(self):
+        """Unknown on_schema_change value → WARNING."""
+        result = predict_ddl(
+            model_name="m",
+            materialization="incremental",
+            on_schema_change="unknown_value",
+            base_columns=["a"],
+            current_columns=["a", "b"],
+        )
+        assert result.safety == Safety.WARNING

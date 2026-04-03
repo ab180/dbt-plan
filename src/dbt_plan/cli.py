@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import sys
 from pathlib import Path
@@ -59,7 +60,7 @@ def _do_check(args: argparse.Namespace) -> int:
     """
     project_dir = Path(args.project_dir)
     target_dir = project_dir / args.target_dir
-    base_dir = Path(args.base_dir)
+    base_dir = project_dir / Path(args.base_dir)
     manifest_path = Path(
         args.manifest if args.manifest else str(target_dir / "manifest.json")
     )
@@ -92,7 +93,11 @@ def _do_check(args: argparse.Namespace) -> int:
         return 0
 
     # 2. Load manifest
-    manifest = load_manifest(manifest_path)
+    try:
+        manifest = load_manifest(manifest_path)
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"Error: Could not parse manifest.json: {e}", file=sys.stderr)
+        return 2
     child_map = manifest.get("child_map", {})
 
     # 3. For each changed model: extract columns, predict DDL
@@ -112,7 +117,13 @@ def _do_check(args: argparse.Namespace) -> int:
         if diff.current_path:
             current_cols = extract_columns(diff.current_path.read_text())
 
-        if diff.status == "modified" and (base_cols is None or current_cols is None):
+        # Track parse failures only for models where it matters
+        # (table/view are always safe via CREATE OR REPLACE, so parse failure is irrelevant)
+        if (
+            diff.status == "modified"
+            and node.materialization not in ("table", "view")
+            and (base_cols is None or current_cols is None)
+        ):
             parse_failures.append(diff.model_name)
 
         prediction = predict_ddl(
@@ -121,6 +132,7 @@ def _do_check(args: argparse.Namespace) -> int:
             on_schema_change=node.on_schema_change,
             base_columns=base_cols,
             current_columns=current_cols,
+            status=diff.status,
         )
         predictions.append(prediction)
 

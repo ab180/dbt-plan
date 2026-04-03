@@ -110,6 +110,7 @@ class TestFullPipeline:
             node.on_schema_change,
             base_cols,
             current_cols,
+            status="modified",
         )
         assert prediction.safety == Safety.DESTRUCTIVE
         assert "data__device" in prediction.columns_removed
