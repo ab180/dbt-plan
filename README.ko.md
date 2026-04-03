@@ -144,7 +144,7 @@ flowchart TD
 git clone https://github.com/ab180/dbt-plan
 cd dbt-plan
 pip install -e ".[test]"
-pytest -v                  # 42개 테스트 전체 실행
+pytest -v                  # 전체 테스트 실행
 dbt-plan --version         # dbt-plan 0.1.0
 ```
 

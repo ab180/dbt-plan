@@ -6,7 +6,7 @@
 git clone https://github.com/ab180/dbt-plan
 cd dbt-plan
 pip install -e ".[test]"
-pytest -v                  # 42 tests should pass
+pytest -v                  # all tests should pass
 dbt-plan --version         # dbt-plan 0.1.0
 ```
 
