@@ -4,6 +4,7 @@ Requires: pip install dbt-core dbt-duckdb
 Skip if dbt is not installed.
 """
 
+import importlib.util
 import shutil
 import subprocess
 import sys
@@ -20,11 +21,18 @@ _DBT_PLAN = str(_VENV_BIN / "dbt-plan")
 
 
 def _dbt_available():
-    return Path(_DBT).exists()
+    """Check dbt CLI, dbt-plan CLI, and dbt-duckdb adapter are all installed."""
+    if not Path(_DBT).exists():
+        return False
+    if not Path(_DBT_PLAN).exists():
+        return False
+    if importlib.util.find_spec("dbt.adapters.duckdb") is None:
+        return False
+    return True
 
 
 pytestmark = pytest.mark.skipif(
-    not _dbt_available(), reason="dbt-core not installed"
+    not _dbt_available(), reason="dbt-core, dbt-duckdb, or dbt-plan not installed"
 )
 
 

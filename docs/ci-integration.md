@@ -55,8 +55,9 @@ jobs:
 
       - name: Run DDL check
         id: plan
+        continue-on-error: true
         run: |
-          dbt-plan check --format github > /tmp/dbt-plan-output.md
+          dbt-plan check --format github > /tmp/dbt-plan-output.md || true
           echo "result<<EOF" >> $GITHUB_OUTPUT
           cat /tmp/dbt-plan-output.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT

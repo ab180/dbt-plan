@@ -19,7 +19,7 @@ dbt-plan --version         # dbt-plan 0.1.0
 
 ## Architecture
 
-```
+```text
 src/dbt_plan/
 ├── columns.py      # SQLGlot column extraction from compiled SQL
 ├── predictor.py    # DDL prediction rules (materialization x on_schema_change)

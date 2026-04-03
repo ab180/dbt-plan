@@ -7,8 +7,6 @@
 #   cd examples/sample-project
 #   bash run-example.sh
 
-set -e
-
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "=== dbt-plan example ==="
@@ -37,11 +35,13 @@ dbt-plan check \
 
 echo ""
 echo "--- Exit code check ---"
+set +e
 dbt-plan check \
   --base-dir "$SCRIPT_DIR/base" \
   --project-dir "$SCRIPT_DIR/current" \
-  > /dev/null 2>&1 || true
-EXIT_CODE=${PIPESTATUS[0]:-$?}
-echo "exit code: $EXIT_CODE (0=safe, 1=destructive, 2=warning)"
+  > /dev/null 2>&1
+EXIT_CODE=$?
+set -e
+echo "exit code: $EXIT_CODE (0=safe, 1=destructive, 2=error)"
 echo ""
 echo "이 예제에서는 int_unified에 DROP COLUMN이 있으므로 exit 1 (destructive) 입니다."

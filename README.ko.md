@@ -24,7 +24,7 @@ dbt-plan check --format github   # GitHub 마크다운 출력
 
 ## 출력 예시
 
-```
+```text
 $ dbt-plan check
 
 dbt-plan -- 2 model(s) changed
@@ -157,7 +157,7 @@ dbt-plan --version         # dbt-plan 0.1.0
 
 ### 아키텍처
 
-```
+```text
 src/dbt_plan/
 ├── columns.py      # SQLGlot 기반 컬럼 추출
 ├── predictor.py    # DDL 예측 규칙 엔진

@@ -21,7 +21,7 @@ bash run-example.sh
 
 ## 기대 출력
 
-```
+```text
 dbt-plan -- 4 model(s) changed
 
 DESTRUCTIVE  int_unified (incremental, sync_all_columns)
@@ -45,7 +45,7 @@ Exit code: **1** (destructive — int_unified에 DROP COLUMN)
 
 ## 구조
 
-```
+```text
 base/                              # snapshot (변경 전)
 ├── compiled/*.sql
 └── manifest.json
