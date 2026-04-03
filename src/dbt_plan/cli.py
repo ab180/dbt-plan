@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -33,9 +34,27 @@ def _find_compiled_dir(target_dir: Path) -> Path | None:
     return None
 
 
+def _run_dbt_compile(config: Config, project_dir: Path) -> None:
+    """Run dbt compile using the configured dbt command."""
+    cmd_parts = config.dbt_cmd.split()
+    cmd_parts.append("compile")
+    if config.profiles_dir:
+        cmd_parts.extend(["--profiles-dir", config.profiles_dir])
+    print(f"Running: {' '.join(cmd_parts)}", file=sys.stderr)
+    result = subprocess.run(cmd_parts, cwd=project_dir)
+    if result.returncode != 0:
+        print("Error: dbt compile failed", file=sys.stderr)
+        sys.exit(2)
+
+
 def _do_snapshot(args: argparse.Namespace) -> None:
     """Save current compiled state as baseline (compiled SQL + manifest)."""
     project_dir = Path(args.project_dir)
+    config = Config.load(project_dir)
+
+    if getattr(args, "compile", False):
+        _run_dbt_compile(config, project_dir)
+
     target_dir = project_dir / args.target_dir
     base_dir = project_dir / ".dbt-plan" / "base"
 
@@ -69,6 +88,11 @@ def _do_check(args: argparse.Namespace) -> int:
         Exit code: 0=safe, 1=destructive, 2=error.
     """
     project_dir = Path(args.project_dir)
+    config = Config.load(project_dir)
+
+    if getattr(args, "compile", False):
+        _run_dbt_compile(config, project_dir)
+
     target_dir = project_dir / args.target_dir
     base_dir = project_dir / Path(args.base_dir)
     manifest_path = Path(
@@ -134,6 +158,7 @@ def _do_check(args: argparse.Namespace) -> int:
     predictions = []
     parse_failures: list[str] = []
     downstream_map: dict[str, list[str]] = {}
+    sql_diffs: dict[str, tuple[Path | None, Path | None]] = {}
 
     for diff in model_diffs:
         # Look up in current manifest first, fall back to base manifest for removed models
@@ -191,6 +216,7 @@ def _do_check(args: argparse.Namespace) -> int:
             )
 
         predictions.append(prediction)
+        sql_diffs[diff.model_name] = (diff.base_path, diff.current_path)
 
         downstream = find_downstream(node.node_id, child_map)
         if downstream:
@@ -198,7 +224,7 @@ def _do_check(args: argparse.Namespace) -> int:
             downstream_map[diff.model_name] = downstream_names
 
     # 4. Format output
-    check_result = CheckResult(predictions, downstream_map, parse_failures)
+    check_result = CheckResult(predictions, downstream_map, parse_failures, sql_diffs)
     if args.format == "github":
         print(format_github(check_result))
     else:
@@ -277,6 +303,10 @@ def main() -> None:
         "--target-dir", default=config.target_dir,
         help=f"dbt target directory (default: {config.target_dir})",
     )
+    snap.add_argument(
+        "--compile", action="store_true",
+        help="Run dbt compile before snapshot (uses dbt_cmd from config)",
+    )
 
     # check
     check = subparsers.add_parser(
@@ -303,6 +333,10 @@ def main() -> None:
         choices=["text", "github"],
         default="text",
         help="Output format (default: text)",
+    )
+    check.add_argument(
+        "--compile", action="store_true",
+        help="Run dbt compile before check (uses dbt_cmd from config)",
     )
 
     args = parser.parse_args()
