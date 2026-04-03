@@ -33,7 +33,7 @@ def _find_compiled_dir(target_dir: Path) -> Path | None:
 
 
 def _do_snapshot(args: argparse.Namespace) -> None:
-    """Save current compiled state as baseline."""
+    """Save current compiled state as baseline (compiled SQL + manifest)."""
     project_dir = Path(args.project_dir)
     target_dir = project_dir / args.target_dir
     base_dir = project_dir / ".dbt-plan" / "base"
@@ -48,7 +48,16 @@ def _do_snapshot(args: argparse.Namespace) -> None:
 
     if base_dir.exists():
         shutil.rmtree(base_dir)
-    shutil.copytree(compiled_dir, base_dir)
+
+    # Save compiled SQL
+    compiled_dest = base_dir / "compiled"
+    shutil.copytree(compiled_dir, compiled_dest)
+
+    # Save manifest.json alongside compiled SQL
+    manifest_src = target_dir / "manifest.json"
+    if manifest_src.exists():
+        shutil.copy2(manifest_src, base_dir / "manifest.json")
+
     print(f"Snapshot saved to {base_dir}")
 
 
@@ -73,6 +82,12 @@ def _do_check(args: argparse.Namespace) -> int:
         )
         return 2
 
+    # Resolve compiled SQL directories
+    base_compiled = base_dir / "compiled"
+    if not base_compiled.exists():
+        # Backward compat: old snapshot format stored SQL directly in base_dir
+        base_compiled = base_dir
+
     current_compiled = _find_compiled_dir(target_dir)
     if current_compiled is None:
         print(
@@ -86,19 +101,33 @@ def _do_check(args: argparse.Namespace) -> int:
         return 2
 
     # 1. Diff compiled dirs
-    model_diffs = diff_compiled_dirs(base_dir, current_compiled)
+    model_diffs = diff_compiled_dirs(base_compiled, current_compiled)
     if not model_diffs:
         fmt = format_text if args.format == "text" else format_github
         print(fmt(CheckResult()))
         return 0
 
-    # 2. Load manifest
+    # 2. Load manifests (current + base for removed model fallback)
     try:
         manifest = load_manifest(manifest_path)
     except (json.JSONDecodeError, OSError) as e:
         print(f"Error: Could not parse manifest.json: {e}", file=sys.stderr)
         return 2
+
+    base_manifest_path = base_dir / "manifest.json"
+    base_manifest = None
+    if base_manifest_path.exists():
+        try:
+            base_manifest = load_manifest(base_manifest_path)
+        except (json.JSONDecodeError, OSError):
+            pass  # base manifest is best-effort
+
     child_map = manifest.get("child_map", {})
+    if base_manifest:
+        # Merge base child_map for removed models
+        for k, v in base_manifest.get("child_map", {}).items():
+            if k not in child_map:
+                child_map[k] = v
 
     # 3. For each changed model: extract columns, predict DDL
     predictions = []
@@ -106,9 +135,12 @@ def _do_check(args: argparse.Namespace) -> int:
     downstream_map: dict[str, list[str]] = {}
 
     for diff in model_diffs:
+        # Look up in current manifest first, fall back to base manifest for removed models
         node = find_node_by_name(diff.model_name, manifest)
+        if node is None and base_manifest is not None:
+            node = find_node_by_name(diff.model_name, base_manifest)
         if node is None:
-            continue  # ephemeral or unknown
+            continue  # ephemeral or unknown in both manifests
 
         base_cols = None
         current_cols = None

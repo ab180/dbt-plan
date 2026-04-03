@@ -151,16 +151,71 @@ class TestCLIExitCode:
             shutil.copy(f, target_models / f.name)
         shutil.copy(manifest_path, tmp_path / "target" / "manifest.json")
 
+        # Create base_dir in new snapshot format (compiled/ subdir + manifest)
+        snapshot_dir = tmp_path / "snapshot"
+        compiled_dest = snapshot_dir / "compiled"
+        compiled_dest.mkdir(parents=True)
+        for f in base_dir.iterdir():
+            shutil.copy(f, compiled_dest / f.name)
+        shutil.copy(manifest_path, snapshot_dir / "manifest.json")
+
         monkeypatch.setattr(
             "sys.argv",
             [
                 "dbt-plan",
                 "check",
                 "--project-dir", str(tmp_path),
-                "--base-dir", str(base_dir),
+                "--base-dir", str(snapshot_dir),
                 "--format", "text",
             ],
         )
         with pytest.raises(SystemExit) as exc_info:
             main()
+        assert exc_info.value.code == 1
+
+    def test_removed_model_detected(self, project, monkeypatch):
+        """Removed model is detected even when not in current manifest."""
+        tmp_path, base_dir, current_dir, manifest_path = project
+
+        # Base has a model that current doesn't
+        snapshot_dir = tmp_path / "snapshot"
+        compiled_dest = snapshot_dir / "compiled"
+        compiled_dest.mkdir(parents=True)
+        for f in base_dir.iterdir():
+            shutil.copy(f, compiled_dest / f.name)
+        # Add an extra model to base that doesn't exist in current
+        (compiled_dest / "old_removed.sql").write_text("SELECT x FROM t\n")
+
+        # Base manifest includes old_removed, current manifest doesn't
+        import json as json_mod
+        base_manifest_data = json_mod.loads(manifest_path.read_text())
+        base_manifest_data["nodes"]["model.test.old_removed"] = {
+            "name": "old_removed",
+            "config": {"materialized": "table"},
+        }
+        base_manifest_data["child_map"]["model.test.old_removed"] = []
+        (snapshot_dir / "manifest.json").write_text(
+            json_mod.dumps(base_manifest_data)
+        )
+
+        # Current target
+        target_models = tmp_path / "target" / "compiled" / "test" / "models"
+        target_models.mkdir(parents=True)
+        for f in current_dir.iterdir():
+            shutil.copy(f, target_models / f.name)
+        shutil.copy(manifest_path, tmp_path / "target" / "manifest.json")
+
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "dbt-plan",
+                "check",
+                "--project-dir", str(tmp_path),
+                "--base-dir", str(snapshot_dir),
+                "--format", "text",
+            ],
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        # Should exit 1 (destructive) because old_removed is MODEL REMOVED
         assert exc_info.value.code == 1
