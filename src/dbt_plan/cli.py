@@ -15,6 +15,7 @@ from dbt_plan.diff import diff_compiled_dirs
 from dbt_plan.formatter import CheckResult, format_github, format_text
 from dbt_plan.manifest import find_downstream, find_node_by_name, load_manifest
 from dbt_plan.predictor import DDLOperation, DDLPrediction, Safety, predict_ddl
+from dbt_plan.warehouse import WarehouseConfig, query_warehouse_columns
 
 
 def _find_compiled_dir(target_dir: Path) -> Path | None:
@@ -32,6 +33,27 @@ def _find_compiled_dir(target_dir: Path) -> Path | None:
             if models_dir.exists():
                 return models_dir
     return None
+
+
+def _get_warehouse_config() -> WarehouseConfig | None:
+    """Build WarehouseConfig from environment variables, or None if not configured."""
+    import os
+
+    account = os.environ.get("SNOWFLAKE_ACCOUNT")
+    user = os.environ.get("SNOWFLAKE_USER")
+    database = os.environ.get("SNOWFLAKE_DATABASE")
+    if not all([account, user, database]):
+        return None
+    return WarehouseConfig(
+        account=account,  # type: ignore[arg-type]
+        user=user,  # type: ignore[arg-type]
+        database=database,  # type: ignore[arg-type]
+        schema=os.environ.get("SNOWFLAKE_SCHEMA", "DBT"),
+        password=os.environ.get("SNOWFLAKE_PASSWORD"),
+        role=os.environ.get("SNOWFLAKE_ROLE"),
+        warehouse=os.environ.get("SNOWFLAKE_WAREHOUSE"),
+        private_key_path=os.environ.get("SNOWFLAKE_PRIVATE_KEY_PATH"),
+    )
 
 
 def _run_dbt_compile(config: Config, project_dir: Path) -> None:
@@ -154,6 +176,24 @@ def _do_check(args: argparse.Namespace) -> int:
             if k not in child_map:
                 child_map[k] = v
 
+    # 2b. Warehouse column lookup for sync_all_columns models (Phase 1b)
+    warehouse_columns: dict[str, list[str]] = {}
+    wh_config = _get_warehouse_config()
+    if wh_config:
+        # Find sync_all_columns models that need warehouse lookup
+        needs_warehouse: list[str] = []
+        for diff in model_diffs:
+            node = find_node_by_name(diff.model_name, manifest)
+            if node is None and base_manifest is not None:
+                node = find_node_by_name(diff.model_name, base_manifest)
+            if node and node.on_schema_change == "sync_all_columns":
+                needs_warehouse.append(diff.model_name)
+        if needs_warehouse:
+            try:
+                warehouse_columns = query_warehouse_columns(wh_config, needs_warehouse)
+            except Exception as e:
+                print(f"Warning: warehouse query failed: {e}", file=sys.stderr)
+
     # 3. For each changed model: extract columns, predict DDL
     predictions = []
     parse_failures: list[str] = []
@@ -174,6 +214,14 @@ def _do_check(args: argparse.Namespace) -> int:
             base_cols = extract_columns(diff.base_path.read_text())
         if diff.current_path:
             current_cols = extract_columns(diff.current_path.read_text())
+
+        # Warehouse fallback: use INFORMATION_SCHEMA columns when SQLGlot can't extract
+        # (SELECT * or parse failure on sync_all_columns models)
+        wh_cols = warehouse_columns.get(diff.model_name)
+        if wh_cols and (base_cols is None or base_cols == ["*"]):
+            base_cols = wh_cols
+        # Note: current_cols from compiled SQL is always preferred over warehouse
+        # because it represents what the PR will produce after dbt run
 
         # Track parse failures only for models where it matters
         # (table/view are always safe via CREATE OR REPLACE, so parse failure is irrelevant)
