@@ -22,6 +22,7 @@ dbt-plan = "dbt_plan.cli:main"
 
 [project.optional-dependencies]
 test = ["pytest>=8.0.0"]
+dbt = ["dbt-core>=1.7.0", "dbt-duckdb>=1.7.0"]
 
 [project.urls]
 Homepage = "https://github.com/ab180/dbt-plan"
