@@ -1,0 +1,229 @@
+[0m14:40:58.560210 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10ac10ad0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10bb77750>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10bb77890>]}
+
+
+============================== 14:40:58.568712 | d3bea4e6-6212-4134-b800-afd9d9d47669 ==============================
+[0m14:40:58.568712 [info ] [MainThread]: Running with dbt=1.11.7
+[0m14:40:58.568994 [debug] [MainThread]: running dbt with arguments {'static_parser': 'True', 'debug': 'False', 'log_format': 'default', 'partial_parse': 'True', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'log_path': '/Users/ab180/conductor/workspaces/dbt-plan/ottawa/tests/dbt_project/logs', 'use_experimental_parser': 'False', 'send_anonymous_usage_stats': 'True', 'profiles_dir': '.', 'fail_fast': 'False', 'use_colors': 'True', 'introspect': 'True', 'write_json': 'True', 'indirect_selection': 'eager', 'printer_width': '80', 'log_cache_events': 'False', 'warn_error': 'None', 'quiet': 'False', 'invocation_command': 'dbt compile --profiles-dir .', 'cache_selected_only': 'False', 'empty': 'False', 'no_print': 'None', 'version_check': 'True', 'target_path': 'None'}
+[0m14:40:59.228935 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'project_id', 'label': 'd3bea4e6-6212-4134-b800-afd9d9d47669', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10aeac3e0>]}
+[0m14:40:59.255483 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'adapter_info', 'label': 'd3bea4e6-6212-4134-b800-afd9d9d47669', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10bbdebe0>]}
+[0m14:40:59.258201 [info ] [MainThread]: Registered adapter: duckdb=1.10.1
+[0m14:40:59.310332 [debug] [MainThread]: checksum: b80718358155fc17c3559352095564dd56ada1cc1a1c0ef2e62c857e71583775, vars: {}, profile: , target: , version: 1.11.7
+[0m14:40:59.311881 [info ] [MainThread]: Unable to do partial parsing because saved manifest not found. Starting full parse.
+[0m14:40:59.312035 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'partial_parser', 'label': 'd3bea4e6-6212-4134-b800-afd9d9d47669', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10bc4d350>]}
+[0m14:40:59.745146 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'load_project', 'label': 'd3bea4e6-6212-4134-b800-afd9d9d47669', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10bfb0e60>]}
+[0m14:40:59.767351 [debug] [MainThread]: Wrote artifact WritableManifest to /Users/ab180/conductor/workspaces/dbt-plan/ottawa/tests/dbt_project/target/manifest.json
+[0m14:40:59.770046 [debug] [MainThread]: Wrote artifact SemanticManifest to /Users/ab180/conductor/workspaces/dbt-plan/ottawa/tests/dbt_project/target/semantic_manifest.json
+[0m14:40:59.814644 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'resource_counts', 'label': 'd3bea4e6-6212-4134-b800-afd9d9d47669', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10c15ec10>]}
+[0m14:40:59.814892 [info ] [MainThread]: Found 3 models, 475 macros
+[0m14:40:59.815031 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'runnable_timing', 'label': 'd3bea4e6-6212-4134-b800-afd9d9d47669', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10bfe1090>]}
+[0m14:40:59.816122 [info ] [MainThread]: 
+[0m14:40:59.816262 [info ] [MainThread]: Concurrency: 1 threads (target='dev')
+[0m14:40:59.816368 [info ] [MainThread]: 
+[0m14:40:59.816566 [debug] [MainThread]: Acquiring new duckdb connection 'master'
+[0m14:40:59.818487 [debug] [ThreadPool]: Acquiring new duckdb connection 'list_memory_main'
+[0m14:41:00.171901 [debug] [ThreadPool]: Using duckdb connection "list_memory_main"
+[0m14:41:00.172167 [debug] [ThreadPool]: On list_memory_main: BEGIN
+[0m14:41:00.172340 [debug] [ThreadPool]: Opening a new connection, currently in state init
+[0m14:41:00.177992 [debug] [ThreadPool]: SQL status: OK in 0.006 seconds
+[0m14:41:00.178216 [debug] [ThreadPool]: Using duckdb connection "list_memory_main"
+[0m14:41:00.178342 [debug] [ThreadPool]: On list_memory_main: /* {"app": "dbt", "dbt_version": "1.11.7", "profile_name": "test_profile", "target_name": "dev", "connection_name": "list_memory_main"} */
+select
+      'memory' as database,
+      table_name as name,
+      table_schema as schema,
+      CASE table_type
+        WHEN 'BASE TABLE' THEN 'table'
+        WHEN 'VIEW' THEN 'view'
+        WHEN 'LOCAL TEMPORARY' THEN 'table'
+        END as type
+    from system.information_schema.tables
+    where lower(table_schema) = 'main'
+    and lower(table_catalog) = 'memory'
+  
+[0m14:41:00.180533 [debug] [ThreadPool]: SQL status: OK in 0.002 seconds
+[0m14:41:00.181201 [debug] [ThreadPool]: On list_memory_main: ROLLBACK
+[0m14:41:00.182067 [debug] [ThreadPool]: Failed to rollback 'list_memory_main'
+[0m14:41:00.182220 [debug] [ThreadPool]: On list_memory_main: Close
+[0m14:41:00.182547 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'runnable_timing', 'label': 'd3bea4e6-6212-4134-b800-afd9d9d47669', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10c1cef90>]}
+[0m14:41:00.184403 [debug] [Thread-1 (]: Began running node model.test_project.stg_events
+[0m14:41:00.184619 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly list_memory_main, now model.test_project.stg_events)
+[0m14:41:00.184765 [debug] [Thread-1 (]: Began compiling node model.test_project.stg_events
+[0m14:41:00.187731 [debug] [Thread-1 (]: Writing injected SQL for node "model.test_project.stg_events"
+[0m14:41:00.188184 [debug] [Thread-1 (]: Began executing node model.test_project.stg_events
+[0m14:41:00.188405 [debug] [Thread-1 (]: Finished running node model.test_project.stg_events
+[0m14:41:00.188764 [debug] [Thread-1 (]: Began running node model.test_project.dim_apps
+[0m14:41:00.189036 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly model.test_project.stg_events, now model.test_project.dim_apps)
+[0m14:41:00.189196 [debug] [Thread-1 (]: Began compiling node model.test_project.dim_apps
+[0m14:41:00.190642 [debug] [Thread-1 (]: Writing injected SQL for node "model.test_project.dim_apps"
+[0m14:41:00.191005 [debug] [Thread-1 (]: Began executing node model.test_project.dim_apps
+[0m14:41:00.191257 [debug] [Thread-1 (]: Finished running node model.test_project.dim_apps
+[0m14:41:00.191397 [debug] [Thread-1 (]: Began running node model.test_project.fct_events
+[0m14:41:00.191529 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly model.test_project.dim_apps, now model.test_project.fct_events)
+[0m14:41:00.191676 [debug] [Thread-1 (]: Began compiling node model.test_project.fct_events
+[0m14:41:00.192661 [debug] [Thread-1 (]: Writing injected SQL for node "model.test_project.fct_events"
+[0m14:41:00.192904 [debug] [Thread-1 (]: Began executing node model.test_project.fct_events
+[0m14:41:00.193115 [debug] [Thread-1 (]: Finished running node model.test_project.fct_events
+[0m14:41:00.193492 [debug] [MainThread]: Connection 'master' was properly closed.
+[0m14:41:00.193592 [debug] [MainThread]: Connection 'model.test_project.fct_events' was properly closed.
+[0m14:41:00.193901 [debug] [MainThread]: Command end result
+[0m14:41:00.202198 [debug] [MainThread]: Wrote artifact WritableManifest to /Users/ab180/conductor/workspaces/dbt-plan/ottawa/tests/dbt_project/target/manifest.json
+[0m14:41:00.203244 [debug] [MainThread]: Wrote artifact SemanticManifest to /Users/ab180/conductor/workspaces/dbt-plan/ottawa/tests/dbt_project/target/semantic_manifest.json
+[0m14:41:00.206469 [debug] [MainThread]: Wrote artifact RunExecutionResult to /Users/ab180/conductor/workspaces/dbt-plan/ottawa/tests/dbt_project/target/run_results.json
+[0m14:41:00.215703 [debug] [MainThread]: Resource report: {"command_name": "compile", "command_success": true, "command_wall_clock_time": 1.7091578, "process_in_blocks": "0", "process_kernel_time": 0.341277, "process_mem_max_rss": "154370048", "process_out_blocks": "0", "process_user_time": 1.263611}
+[0m14:41:00.215975 [debug] [MainThread]: Command `dbt compile` succeeded at 14:41:00.215933 after 1.71 seconds
+[0m14:41:00.216135 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10c02fcd0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10c56b890>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10c569a90>]}
+[0m14:41:00.216284 [debug] [MainThread]: Flushing usage events
+[0m14:41:01.094391 [debug] [MainThread]: An error was encountered while trying to flush usage events
+[0m14:41:23.285475 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10c794ad0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10d6ff750>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10d6ff890>]}
+
+
+============================== 14:41:23.288334 | 0cba49a9-c629-4bbb-a702-53b1b8aaaf42 ==============================
+[0m14:41:23.288334 [info ] [MainThread]: Running with dbt=1.11.7
+[0m14:41:23.288644 [debug] [MainThread]: running dbt with arguments {'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'use_experimental_parser': 'False', 'no_print': 'None', 'fail_fast': 'False', 'printer_width': '80', 'warn_error': 'None', 'target_path': 'target', 'use_colors': 'True', 'introspect': 'True', 'debug': 'False', 'log_path': '/Users/ab180/conductor/workspaces/dbt-plan/ottawa/tests/dbt_project/logs', 'version_check': 'True', 'quiet': 'False', 'write_json': 'True', 'log_cache_events': 'False', 'log_format': 'default', 'indirect_selection': 'eager', 'cache_selected_only': 'False', 'partial_parse': 'True', 'invocation_command': 'dbt compile --profiles-dir . --target-path target', 'static_parser': 'True', 'profiles_dir': '.', 'send_anonymous_usage_stats': 'True', 'empty': 'False'}
+[0m14:41:23.451905 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'project_id', 'label': '0cba49a9-c629-4bbb-a702-53b1b8aaaf42', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10ca2c3e0>]}
+[0m14:41:23.475685 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'adapter_info', 'label': '0cba49a9-c629-4bbb-a702-53b1b8aaaf42', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10d762be0>]}
+[0m14:41:23.483804 [info ] [MainThread]: Registered adapter: duckdb=1.10.1
+[0m14:41:23.530167 [debug] [MainThread]: checksum: b80718358155fc17c3559352095564dd56ada1cc1a1c0ef2e62c857e71583775, vars: {}, profile: , target: , version: 1.11.7
+[0m14:41:23.695762 [debug] [MainThread]: Partial parsing enabled: 0 files deleted, 0 files added, 0 files changed.
+[0m14:41:23.696041 [debug] [MainThread]: Nothing changed, skipping partial parsing.
+[0m14:41:23.696190 [debug] [MainThread]: Partial parsing enabled, no changes found, skipping parsing
+[0m14:41:23.707848 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'load_project', 'label': '0cba49a9-c629-4bbb-a702-53b1b8aaaf42', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10d7cdf50>]}
+[0m14:41:23.732245 [debug] [MainThread]: Wrote artifact WritableManifest to /Users/ab180/conductor/workspaces/dbt-plan/ottawa/tests/dbt_project/target/manifest.json
+[0m14:41:23.734309 [debug] [MainThread]: Wrote artifact SemanticManifest to /Users/ab180/conductor/workspaces/dbt-plan/ottawa/tests/dbt_project/target/semantic_manifest.json
+[0m14:41:23.782759 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'resource_counts', 'label': '0cba49a9-c629-4bbb-a702-53b1b8aaaf42', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10d82aa80>]}
+[0m14:41:23.783017 [info ] [MainThread]: Found 3 models, 475 macros
+[0m14:41:23.783149 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'runnable_timing', 'label': '0cba49a9-c629-4bbb-a702-53b1b8aaaf42', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10dd057f0>]}
+[0m14:41:23.784301 [info ] [MainThread]: 
+[0m14:41:23.784438 [info ] [MainThread]: Concurrency: 1 threads (target='dev')
+[0m14:41:23.784535 [info ] [MainThread]: 
+[0m14:41:23.784768 [debug] [MainThread]: Acquiring new duckdb connection 'master'
+[0m14:41:23.786876 [debug] [ThreadPool]: Acquiring new duckdb connection 'list_memory_main'
+[0m14:41:23.881505 [debug] [ThreadPool]: Using duckdb connection "list_memory_main"
+[0m14:41:23.881699 [debug] [ThreadPool]: On list_memory_main: BEGIN
+[0m14:41:23.881804 [debug] [ThreadPool]: Opening a new connection, currently in state init
+[0m14:41:23.888655 [debug] [ThreadPool]: SQL status: OK in 0.007 seconds
+[0m14:41:23.888872 [debug] [ThreadPool]: Using duckdb connection "list_memory_main"
+[0m14:41:23.888993 [debug] [ThreadPool]: On list_memory_main: /* {"app": "dbt", "dbt_version": "1.11.7", "profile_name": "test_profile", "target_name": "dev", "connection_name": "list_memory_main"} */
+select
+      'memory' as database,
+      table_name as name,
+      table_schema as schema,
+      CASE table_type
+        WHEN 'BASE TABLE' THEN 'table'
+        WHEN 'VIEW' THEN 'view'
+        WHEN 'LOCAL TEMPORARY' THEN 'table'
+        END as type
+    from system.information_schema.tables
+    where lower(table_schema) = 'main'
+    and lower(table_catalog) = 'memory'
+  
+[0m14:41:23.895778 [debug] [ThreadPool]: SQL status: OK in 0.007 seconds
+[0m14:41:23.896651 [debug] [ThreadPool]: On list_memory_main: ROLLBACK
+[0m14:41:23.897446 [debug] [ThreadPool]: Failed to rollback 'list_memory_main'
+[0m14:41:23.897558 [debug] [ThreadPool]: On list_memory_main: Close
+[0m14:41:23.897817 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'runnable_timing', 'label': '0cba49a9-c629-4bbb-a702-53b1b8aaaf42', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10dce4390>]}
+[0m14:41:23.899181 [debug] [Thread-1 (]: Began running node model.test_project.stg_events
+[0m14:41:23.899392 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly list_memory_main, now model.test_project.stg_events)
+[0m14:41:23.899541 [debug] [Thread-1 (]: Began compiling node model.test_project.stg_events
+[0m14:41:23.902602 [debug] [Thread-1 (]: Writing injected SQL for node "model.test_project.stg_events"
+[0m14:41:23.903054 [debug] [Thread-1 (]: Began executing node model.test_project.stg_events
+[0m14:41:23.903322 [debug] [Thread-1 (]: Finished running node model.test_project.stg_events
+[0m14:41:23.903596 [debug] [Thread-1 (]: Began running node model.test_project.dim_apps
+[0m14:41:23.903765 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly model.test_project.stg_events, now model.test_project.dim_apps)
+[0m14:41:23.903902 [debug] [Thread-1 (]: Began compiling node model.test_project.dim_apps
+[0m14:41:23.905061 [debug] [Thread-1 (]: Writing injected SQL for node "model.test_project.dim_apps"
+[0m14:41:23.905375 [debug] [Thread-1 (]: Began executing node model.test_project.dim_apps
+[0m14:41:23.905596 [debug] [Thread-1 (]: Finished running node model.test_project.dim_apps
+[0m14:41:23.905729 [debug] [Thread-1 (]: Began running node model.test_project.fct_events
+[0m14:41:23.905845 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly model.test_project.dim_apps, now model.test_project.fct_events)
+[0m14:41:23.905970 [debug] [Thread-1 (]: Began compiling node model.test_project.fct_events
+[0m14:41:23.906827 [debug] [Thread-1 (]: Writing injected SQL for node "model.test_project.fct_events"
+[0m14:41:23.907125 [debug] [Thread-1 (]: Began executing node model.test_project.fct_events
+[0m14:41:23.907337 [debug] [Thread-1 (]: Finished running node model.test_project.fct_events
+[0m14:41:23.907728 [debug] [MainThread]: Connection 'master' was properly closed.
+[0m14:41:23.907882 [debug] [MainThread]: Connection 'model.test_project.fct_events' was properly closed.
+[0m14:41:23.908205 [debug] [MainThread]: Command end result
+[0m14:41:23.948137 [debug] [MainThread]: Wrote artifact WritableManifest to /Users/ab180/conductor/workspaces/dbt-plan/ottawa/tests/dbt_project/target/manifest.json
+[0m14:41:23.949161 [debug] [MainThread]: Wrote artifact SemanticManifest to /Users/ab180/conductor/workspaces/dbt-plan/ottawa/tests/dbt_project/target/semantic_manifest.json
+[0m14:41:23.952040 [debug] [MainThread]: Wrote artifact RunExecutionResult to /Users/ab180/conductor/workspaces/dbt-plan/ottawa/tests/dbt_project/target/run_results.json
+[0m14:41:23.954045 [debug] [MainThread]: Resource report: {"command_name": "compile", "command_success": true, "command_wall_clock_time": 0.7057273, "process_in_blocks": "0", "process_kernel_time": 0.281831, "process_mem_max_rss": "149307392", "process_out_blocks": "0", "process_user_time": 0.868453}
+[0m14:41:23.954213 [debug] [MainThread]: Command `dbt compile` succeeded at 14:41:23.954181 after 0.71 seconds
+[0m14:41:23.954344 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10d5c56d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10dd40b50>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10dd41650>]}
+[0m14:41:23.954481 [debug] [MainThread]: Flushing usage events
+[0m14:41:24.761672 [debug] [MainThread]: An error was encountered while trying to flush usage events
+[0m14:41:54.435571 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10aa7cad0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10b9e7750>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10b9e7890>]}
+
+
+============================== 14:41:54.438563 | 8499f9f0-794a-4a92-b421-03013bba59de ==============================
+[0m14:41:54.438563 [info ] [MainThread]: Running with dbt=1.11.7
+[0m14:41:54.438841 [debug] [MainThread]: running dbt with arguments {'empty': 'False', 'debug': 'False', 'target_path': 'target', 'no_print': 'None', 'partial_parse': 'True', 'invocation_command': 'dbt compile --profiles-dir . --target-path target', 'warn_error': 'None', 'fail_fast': 'False', 'static_parser': 'True', 'cache_selected_only': 'False', 'indirect_selection': 'eager', 'quiet': 'False', 'version_check': 'True', 'log_cache_events': 'False', 'printer_width': '80', 'introspect': 'True', 'profiles_dir': '.', 'write_json': 'True', 'send_anonymous_usage_stats': 'True', 'use_experimental_parser': 'False', 'use_colors': 'True', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'log_path': '/Users/ab180/conductor/workspaces/dbt-plan/ottawa/tests/dbt_project/logs', 'log_format': 'default'}
+[0m14:41:54.584350 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'project_id', 'label': '8499f9f0-794a-4a92-b421-03013bba59de', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10ad143e0>]}
+[0m14:41:54.608565 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'adapter_info', 'label': '8499f9f0-794a-4a92-b421-03013bba59de', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10ba4abe0>]}
+[0m14:41:54.610031 [info ] [MainThread]: Registered adapter: duckdb=1.10.1
+[0m14:41:54.661719 [debug] [MainThread]: checksum: b80718358155fc17c3559352095564dd56ada1cc1a1c0ef2e62c857e71583775, vars: {}, profile: , target: , version: 1.11.7
+[0m14:41:54.714466 [debug] [MainThread]: Partial parsing enabled: 0 files deleted, 0 files added, 1 files changed.
+[0m14:41:54.714801 [debug] [MainThread]: Partial parsing: updated file: test_project://models/marts/fct_events.sql
+[0m14:41:54.801555 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'load_project', 'label': '8499f9f0-794a-4a92-b421-03013bba59de', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10bab5d50>]}
+[0m14:41:54.854276 [debug] [MainThread]: Wrote artifact WritableManifest to /Users/ab180/conductor/workspaces/dbt-plan/ottawa/tests/dbt_project/target/manifest.json
+[0m14:41:54.856237 [debug] [MainThread]: Wrote artifact SemanticManifest to /Users/ab180/conductor/workspaces/dbt-plan/ottawa/tests/dbt_project/target/semantic_manifest.json
+[0m14:41:54.872292 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'resource_counts', 'label': '8499f9f0-794a-4a92-b421-03013bba59de', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10bb128a0>]}
+[0m14:41:54.872531 [info ] [MainThread]: Found 3 models, 475 macros
+[0m14:41:54.872645 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'runnable_timing', 'label': '8499f9f0-794a-4a92-b421-03013bba59de', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10bc02c10>]}
+[0m14:41:54.873330 [info ] [MainThread]: 
+[0m14:41:54.873464 [info ] [MainThread]: Concurrency: 1 threads (target='dev')
+[0m14:41:54.873561 [info ] [MainThread]: 
+[0m14:41:54.873754 [debug] [MainThread]: Acquiring new duckdb connection 'master'
+[0m14:41:54.875432 [debug] [ThreadPool]: Acquiring new duckdb connection 'list_memory_main'
+[0m14:41:55.032549 [debug] [ThreadPool]: Using duckdb connection "list_memory_main"
+[0m14:41:55.032761 [debug] [ThreadPool]: On list_memory_main: BEGIN
+[0m14:41:55.032878 [debug] [ThreadPool]: Opening a new connection, currently in state init
+[0m14:41:55.039023 [debug] [ThreadPool]: SQL status: OK in 0.006 seconds
+[0m14:41:55.039213 [debug] [ThreadPool]: Using duckdb connection "list_memory_main"
+[0m14:41:55.039332 [debug] [ThreadPool]: On list_memory_main: /* {"app": "dbt", "dbt_version": "1.11.7", "profile_name": "test_profile", "target_name": "dev", "connection_name": "list_memory_main"} */
+select
+      'memory' as database,
+      table_name as name,
+      table_schema as schema,
+      CASE table_type
+        WHEN 'BASE TABLE' THEN 'table'
+        WHEN 'VIEW' THEN 'view'
+        WHEN 'LOCAL TEMPORARY' THEN 'table'
+        END as type
+    from system.information_schema.tables
+    where lower(table_schema) = 'main'
+    and lower(table_catalog) = 'memory'
+  
+[0m14:41:55.047057 [debug] [ThreadPool]: SQL status: OK in 0.008 seconds
+[0m14:41:55.048062 [debug] [ThreadPool]: On list_memory_main: ROLLBACK
+[0m14:41:55.049247 [debug] [ThreadPool]: Failed to rollback 'list_memory_main'
+[0m14:41:55.049392 [debug] [ThreadPool]: On list_memory_main: Close
+[0m14:41:55.049719 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'runnable_timing', 'label': '8499f9f0-794a-4a92-b421-03013bba59de', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10c09ab60>]}
+[0m14:41:55.051382 [debug] [Thread-1 (]: Began running node model.test_project.stg_events
+[0m14:41:55.051552 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly list_memory_main, now model.test_project.stg_events)
+[0m14:41:55.051686 [debug] [Thread-1 (]: Began compiling node model.test_project.stg_events
+[0m14:41:55.054557 [debug] [Thread-1 (]: Writing injected SQL for node "model.test_project.stg_events"
+[0m14:41:55.054938 [debug] [Thread-1 (]: Began executing node model.test_project.stg_events
+[0m14:41:55.055229 [debug] [Thread-1 (]: Finished running node model.test_project.stg_events
+[0m14:41:55.055674 [debug] [Thread-1 (]: Began running node model.test_project.dim_apps
+[0m14:41:55.055846 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly model.test_project.stg_events, now model.test_project.dim_apps)
+[0m14:41:55.055972 [debug] [Thread-1 (]: Began compiling node model.test_project.dim_apps
+[0m14:41:55.057336 [debug] [Thread-1 (]: Writing injected SQL for node "model.test_project.dim_apps"
+[0m14:41:55.057699 [debug] [Thread-1 (]: Began executing node model.test_project.dim_apps
+[0m14:41:55.057932 [debug] [Thread-1 (]: Finished running node model.test_project.dim_apps
+[0m14:41:55.058065 [debug] [Thread-1 (]: Began running node model.test_project.fct_events
+[0m14:41:55.058200 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly model.test_project.dim_apps, now model.test_project.fct_events)
+[0m14:41:55.058317 [debug] [Thread-1 (]: Began compiling node model.test_project.fct_events
+[0m14:41:55.059245 [debug] [Thread-1 (]: Writing injected SQL for node "model.test_project.fct_events"
+[0m14:41:55.059545 [debug] [Thread-1 (]: Began executing node model.test_project.fct_events
+[0m14:41:55.059755 [debug] [Thread-1 (]: Finished running node model.test_project.fct_events
+[0m14:41:55.060182 [debug] [MainThread]: Connection 'master' was properly closed.
+[0m14:41:55.060328 [debug] [MainThread]: Connection 'model.test_project.fct_events' was properly closed.
+[0m14:41:55.060647 [debug] [MainThread]: Command end result
+[0m14:41:55.068536 [debug] [MainThread]: Wrote artifact WritableManifest to /Users/ab180/conductor/workspaces/dbt-plan/ottawa/tests/dbt_project/target/manifest.json
+[0m14:41:55.069463 [debug] [MainThread]: Wrote artifact SemanticManifest to /Users/ab180/conductor/workspaces/dbt-plan/ottawa/tests/dbt_project/target/semantic_manifest.json
+[0m14:41:55.073498 [debug] [MainThread]: Wrote artifact RunExecutionResult to /Users/ab180/conductor/workspaces/dbt-plan/ottawa/tests/dbt_project/target/run_results.json
+[0m14:41:55.075611 [debug] [MainThread]: Resource report: {"command_name": "compile", "command_success": true, "command_wall_clock_time": 0.67638844, "process_in_blocks": "0", "process_kernel_time": 0.276919, "process_mem_max_rss": "152879104", "process_out_blocks": "0", "process_user_time": 0.884158}
+[0m14:41:55.075819 [debug] [MainThread]: Command `dbt compile` succeeded at 14:41:55.075781 after 0.68 seconds
+[0m14:41:55.075973 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10b8ad6d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10c1324c0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10c132780>]}
+[0m14:41:55.076116 [debug] [MainThread]: Flushing usage events
+[0m14:41:55.897476 [debug] [MainThread]: An error was encountered while trying to flush usage events
