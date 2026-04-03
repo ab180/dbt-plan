@@ -1,0 +1,32 @@
+{
+  "nodes": {
+    "model.sample.dim_device": {
+      "name": "dim_device",
+      "config": {
+        "materialized": "table"
+      }
+    },
+    "model.sample.int_unified": {
+      "name": "int_unified",
+      "config": {
+        "materialized": "incremental",
+        "on_schema_change": "sync_all_columns"
+      }
+    },
+    "model.sample.fct_daily_metrics": {
+      "name": "fct_daily_metrics",
+      "config": {
+        "materialized": "incremental",
+        "on_schema_change": "append_new_columns"
+      }
+    }
+  },
+  "child_map": {
+    "model.sample.dim_device": [],
+    "model.sample.int_unified": [
+      "model.sample.dim_device",
+      "model.sample.fct_daily_metrics"
+    ],
+    "model.sample.fct_daily_metrics": []
+  }
+}
