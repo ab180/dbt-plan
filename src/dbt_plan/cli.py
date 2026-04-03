@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from dbt_plan.columns import extract_columns
+from dbt_plan.config import Config
 from dbt_plan.diff import diff_compiled_dirs
 from dbt_plan.formatter import CheckResult, format_github, format_text
 from dbt_plan.manifest import find_downstream, find_node_by_name, load_manifest
@@ -188,8 +189,42 @@ def _do_check(args: argparse.Namespace) -> int:
     return 0
 
 
+def _do_init(args: argparse.Namespace) -> None:
+    """Create a .dbt-plan.yml config file."""
+    project_dir = Path(args.project_dir)
+    config_path = project_dir / ".dbt-plan.yml"
+    if config_path.exists():
+        print(f"Config already exists: {config_path}")
+        return
+
+    config_path.write_text(
+        "# dbt-plan configuration\n"
+        "# See: https://github.com/ab180/dbt-plan/blob/main/docs/configuration.md\n"
+        "\n"
+        "# dbt execution command (default: dbt)\n"
+        "# Examples: uv run dbt, poetry run dbt, pipx run dbt\n"
+        "dbt_cmd: dbt\n"
+        "\n"
+        "# dbt compile output directory (default: target)\n"
+        "target_dir: target\n"
+        "\n"
+        "# Snapshot baseline directory (default: .dbt-plan/base)\n"
+        "base_dir: .dbt-plan/base\n"
+        "\n"
+        "# dbt profiles directory (default: none, uses dbt default)\n"
+        "# profiles_dir: ./profiles\n"
+    )
+    print(f"Config created: {config_path}")
+
+
 def main() -> None:
     from dbt_plan import __version__
+
+    # Pre-parse to find --project-dir for config loading
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument("--project-dir", default=".")
+    pre_args, _ = pre_parser.parse_known_args()
+    config = Config.load(pre_args.project_dir)
 
     parser = argparse.ArgumentParser(
         prog="dbt-plan",
@@ -200,6 +235,14 @@ def main() -> None:
     )
     subparsers = parser.add_subparsers(dest="command")
 
+    # init
+    init_cmd = subparsers.add_parser(
+        "init", help="Create .dbt-plan.yml config file"
+    )
+    init_cmd.add_argument(
+        "--project-dir", default=".", help="dbt project directory (default: .)"
+    )
+
     # snapshot
     snap = subparsers.add_parser(
         "snapshot", help="Save current compiled state as baseline"
@@ -208,7 +251,8 @@ def main() -> None:
         "--project-dir", default=".", help="dbt project directory (default: .)"
     )
     snap.add_argument(
-        "--target-dir", default="target", help="dbt target directory (default: target)"
+        "--target-dir", default=config.target_dir,
+        help=f"dbt target directory (default: {config.target_dir})",
     )
 
     # check
@@ -219,12 +263,12 @@ def main() -> None:
         "--project-dir", default=".", help="dbt project directory (default: .)"
     )
     check.add_argument(
-        "--target-dir", default="target", help="dbt target directory (default: target)"
+        "--target-dir", default=config.target_dir,
+        help=f"dbt target directory (default: {config.target_dir})",
     )
     check.add_argument(
-        "--base-dir",
-        default=".dbt-plan/base",
-        help="Baseline snapshot directory (default: .dbt-plan/base)",
+        "--base-dir", default=config.base_dir,
+        help=f"Baseline snapshot directory (default: {config.base_dir})",
     )
     check.add_argument(
         "--manifest",
@@ -243,6 +287,9 @@ def main() -> None:
     if args.command is None:
         parser.print_help()
         sys.exit(1)
+
+    if args.command == "init":
+        _do_init(args)
 
     if args.command == "snapshot":
         _do_snapshot(args)
