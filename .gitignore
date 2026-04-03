@@ -5,5 +5,10 @@ build/
 .dbt-plan/
 .pytest_cache/
 *.pyc
-.venv/
+.venv*/
 .env
+
+# dbt artifacts (E2E tests regenerate these)
+tests/dbt_project/target/
+tests/dbt_project/logs/
+tests/dbt_project/.user.yml
