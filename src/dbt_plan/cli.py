@@ -189,9 +189,14 @@ def _do_check(args: argparse.Namespace) -> int:
 
 
 def main() -> None:
+    from dbt_plan import __version__
+
     parser = argparse.ArgumentParser(
         prog="dbt-plan",
         description="Preview what DDL changes dbt run will execute on Snowflake",
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
     )
     subparsers = parser.add_subparsers(dest="command")
 
