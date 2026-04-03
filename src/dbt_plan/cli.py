@@ -13,7 +13,7 @@ from dbt_plan.config import Config
 from dbt_plan.diff import diff_compiled_dirs
 from dbt_plan.formatter import CheckResult, format_github, format_text
 from dbt_plan.manifest import find_downstream, find_node_by_name, load_manifest
-from dbt_plan.predictor import Safety, predict_ddl
+from dbt_plan.predictor import DDLOperation, DDLPrediction, Safety, predict_ddl
 
 
 def _find_compiled_dir(target_dir: Path) -> Path | None:
@@ -159,6 +159,16 @@ def _do_check(args: argparse.Namespace) -> int:
         ):
             parse_failures.append(diff.model_name)
 
+        # Detect config changes (materialization or on_schema_change changed)
+        config_changed = False
+        if diff.status == "modified" and base_manifest is not None:
+            base_node = find_node_by_name(diff.model_name, base_manifest)
+            if base_node is not None and (
+                base_node.materialization != node.materialization
+                or base_node.on_schema_change != node.on_schema_change
+            ):
+                config_changed = True
+
         prediction = predict_ddl(
             model_name=diff.model_name,
             materialization=node.materialization,
@@ -167,6 +177,19 @@ def _do_check(args: argparse.Namespace) -> int:
             current_columns=current_cols,
             status=diff.status,
         )
+
+        # If config changed, escalate safety to at least WARNING
+        if config_changed and prediction.safety == Safety.SAFE:
+            prediction = DDLPrediction(
+                model_name=prediction.model_name,
+                materialization=prediction.materialization,
+                on_schema_change=prediction.on_schema_change,
+                safety=Safety.WARNING,
+                operations=prediction.operations + [DDLOperation("CONFIG CHANGED")],
+                columns_added=prediction.columns_added,
+                columns_removed=prediction.columns_removed,
+            )
+
         predictions.append(prediction)
 
         downstream = find_downstream(node.node_id, child_map)

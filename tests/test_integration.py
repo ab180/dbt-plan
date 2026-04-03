@@ -219,3 +219,46 @@ class TestCLIExitCode:
             main()
         # Should exit 1 (destructive) because old_removed is MODEL REMOVED
         assert exc_info.value.code == 1
+
+    def test_config_change_detected(self, project, monkeypatch, capsys):
+        """Materialization change from table to incremental → WARNING."""
+        tmp_path, base_dir, current_dir, manifest_path = project
+
+        # Base: dim_device is table
+        snapshot_dir = tmp_path / "snapshot"
+        compiled_dest = snapshot_dir / "compiled"
+        compiled_dest.mkdir(parents=True)
+        for f in base_dir.iterdir():
+            shutil.copy(f, compiled_dest / f.name)
+        shutil.copy(manifest_path, snapshot_dir / "manifest.json")
+
+        # Current: dim_device changed to incremental+sync_all_columns
+        import json as json_mod
+        current_manifest = json_mod.loads(manifest_path.read_text())
+        current_manifest["nodes"]["model.test.dim_device"]["config"] = {
+            "materialized": "incremental",
+            "on_schema_change": "sync_all_columns",
+        }
+        target_models = tmp_path / "target" / "compiled" / "test" / "models"
+        target_models.mkdir(parents=True)
+        for f in current_dir.iterdir():
+            shutil.copy(f, target_models / f.name)
+        (tmp_path / "target" / "manifest.json").write_text(
+            json_mod.dumps(current_manifest)
+        )
+
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "dbt-plan",
+                "check",
+                "--project-dir", str(tmp_path),
+                "--base-dir", str(snapshot_dir),
+                "--format", "text",
+            ],
+        )
+        with pytest.raises(SystemExit):
+            main()
+
+        output = capsys.readouterr().out
+        assert "CONFIG CHANGED" in output
