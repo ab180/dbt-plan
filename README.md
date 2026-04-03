@@ -114,24 +114,26 @@ jobs:
 
 ## How It Works
 
-```
-1. dbt-plan snapshot
-   Save compiled SQL + manifest.json as baseline
+```mermaid
+flowchart TD
+    A[dbt-plan snapshot] --> B[Save compiled SQL + manifest.json]
 
-2. dbt-plan check
-   compiled SQL diff → column extraction (SQLGlot) → DDL prediction → downstream impact
-
-   base compiled/*.sql  vs  current compiled/*.sql
-        ↓                        ↓
-   extract_columns()        extract_columns()
-        ↓                        ↓
-   base columns    ──diff──  current columns
-                      ↓
-              predict_ddl() + manifest config
-                      ↓
-              DDL prediction + downstream
-                      ↓
-              format_text() / format_github()
+    C[dbt-plan check] --> D[diff_compiled_dirs]
+    D --> E[base compiled SQL]
+    D --> F[current compiled SQL]
+    E --> G[extract_columns]
+    F --> H[extract_columns]
+    G --> I[base columns]
+    H --> J[current columns]
+    I --> K[column diff]
+    J --> K
+    K --> L[predict_ddl + manifest config]
+    L --> M{Safety?}
+    M -->|SAFE| N[exit 0]
+    M -->|WARNING| O[exit 2]
+    M -->|DESTRUCTIVE| P[exit 1 — block merge]
+    L --> Q[find_downstream]
+    Q --> R[format_text / format_github]
 ```
 
 ## Contributing

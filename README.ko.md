@@ -114,24 +114,26 @@ jobs:
 
 ## 동작 원리
 
-```
-1. dbt-plan snapshot
-   compiled SQL + manifest.json을 기준선으로 저장
+```mermaid
+flowchart TD
+    A[dbt-plan snapshot] --> B[compiled SQL + manifest.json 저장]
 
-2. dbt-plan check
-   compiled SQL 비교 → 컬럼 추출 (SQLGlot) → DDL 예측 → 하류 영향 분석
-
-   base compiled/*.sql  vs  current compiled/*.sql
-        ↓                        ↓
-   extract_columns()        extract_columns()
-        ↓                        ↓
-   base 컬럼        ──diff──  current 컬럼
-                      ↓
-              predict_ddl() + manifest 설정
-                      ↓
-              DDL 예측 + downstream 모델
-                      ↓
-              format_text() / format_github()
+    C[dbt-plan check] --> D[diff_compiled_dirs]
+    D --> E[base compiled SQL]
+    D --> F[current compiled SQL]
+    E --> G[extract_columns]
+    F --> H[extract_columns]
+    G --> I[base 컬럼]
+    H --> J[current 컬럼]
+    I --> K[컬럼 비교]
+    J --> K
+    K --> L[predict_ddl + manifest 설정]
+    L --> M{판정}
+    M -->|SAFE| N[exit 0]
+    M -->|WARNING| O[exit 2]
+    M -->|DESTRUCTIVE| P[exit 1 — merge 차단]
+    L --> Q[find_downstream]
+    Q --> R[format_text / format_github]
 ```
 
 ## 기여하기
