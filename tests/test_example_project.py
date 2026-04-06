@@ -1,6 +1,5 @@
 """Test that the sample project produces expected predictions."""
 
-import shutil
 from pathlib import Path
 
 import pytest

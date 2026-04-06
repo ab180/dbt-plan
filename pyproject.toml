@@ -1,6 +1,6 @@
 [project]
 name = "dbt-plan"
-version = "0.1.0"
+version = "0.2.0"
 description = "Preview what DDL changes dbt run will execute on Snowflake"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -21,7 +21,8 @@ dependencies = [
 dbt-plan = "dbt_plan.cli:main"
 
 [project.optional-dependencies]
-test = ["pytest>=8.0.0"]
+test = ["pytest>=8.0.0", "pytest-cov>=6.0.0"]
+dev = ["pytest>=8.0.0", "pytest-cov>=6.0.0", "ruff>=0.8.0"]
 dbt = ["dbt-core>=1.7.0", "dbt-duckdb>=1.7.0"]
 
 [project.urls]
@@ -38,3 +39,18 @@ packages = ["src/dbt_plan"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["dbt_plan"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 85
+
+[tool.ruff]
+target-version = "py310"
+line-length = 99
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501", "SIM105", "SIM102", "SIM103"]

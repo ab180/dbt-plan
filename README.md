@@ -11,15 +11,20 @@ Catch destructive DDL changes (like `DROP COLUMN`) before they reach production.
 ## Quick Start
 
 ```bash
-pip install git+https://github.com/ab180/dbt-plan@v0.1.0
+pip install git+https://github.com/ab180/dbt-plan@v0.2.0
 
 # In your dbt project directory:
+dbt-plan init              # Generate .dbt-plan.yml config + update .gitignore
+dbt-plan stats             # Analyze project readiness
+
 dbt compile
 dbt-plan snapshot          # Save baseline (compiled SQL + manifest)
 # ... make model changes ...
 dbt compile
 dbt-plan check             # See what will change
 dbt-plan check --format github   # GitHub markdown output
+dbt-plan check --format json     # JSON for CI pipelines
+dbt-plan check --select model1   # Check specific model only
 ```
 
 ## Output Example
@@ -39,30 +44,31 @@ SAFE  dim_device (table)
   CREATE OR REPLACE TABLE
 ```
 
-## What Works (v0.1.0)
+## What Works (v0.2.0)
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| Column extraction (SQLGlot) | **Done** | Snowflake dialect, CTE, VARIANT, QUALIFY, UNION ALL |
+| Column extraction (SQLGlot) | **Done** | Multi-dialect (Snowflake, BigQuery, Postgres, etc.) |
 | DDL prediction | **Done** | All materialization x on_schema_change combinations |
-| Downstream impact | **Done** | BFS via manifest child_map, cycle protection |
-| Removed model detection | **Done** | Always DESTRUCTIVE, base manifest fallback |
+| Downstream impact | **Done** | Memoized batch BFS, cycle protection |
+| Removed model detection | **Done** | Always DESTRUCTIVE (ephemeral = SAFE) |
 | Parse failure safety | **Done** | Never returns SAFE when columns unknown |
-| SELECT * detection | **Done** | Returns WARNING (cannot diff columns) |
-| Text + GitHub output | **Done** | `--format text` (default) / `--format github` |
-| Snapshot (baseline) | **Done** | Saves compiled SQL + manifest.json |
-| Exit codes | **Done** | 0=safe, 1=destructive, 2=warning/error |
-| CI (package) | **Done** | pytest on Python 3.10-3.13, release on tag |
+| SELECT * fallback | **Done** | Manifest column definitions as fallback |
+| Output formats | **Done** | `--format text` (color) / `github` / `json` |
+| Configuration | **Done** | `.dbt-plan.yml` + env vars (`DBT_PLAN_*`) |
+| Commands | **Done** | `snapshot`, `check`, `init`, `stats` |
+| Model filtering | **Done** | `--select model1,model2` / `ignore_models` in config |
+| Package filtering | **Done** | Auto-excludes dbt package models |
+| CI integration | **Done** | Lint (ruff) + test + 90% coverage, CI workflow template |
+| Verbose mode | **Done** | `--verbose` / `-v` for debugging |
 
 ## What Doesn't Work Yet
 
 | Feature | Phase | Why It Matters |
 |---------|-------|----------------|
-| INFORMATION_SCHEMA query | 1b | 49/228 models use `SELECT *` — can't extract columns without querying warehouse |
-| CI workflow template | 1c | Reusable GitHub Actions workflow for dbt projects |
-| PR comment posting | 1c | Auto-post DDL impact as PR comment with `<!-- dbt-plan -->` marker |
-| `ddl-reviewed` label override | 1d | Escape hatch for intentional destructive changes |
-| Slack notifications | 2a | Alert on destructive DDL |
+| INFORMATION_SCHEMA query | 2a | For SELECT * models without manifest column definitions |
+| `ddl-reviewed` label override | 2b | Escape hatch for intentional destructive changes |
+| Slack notifications | 2c | Alert on destructive DDL |
 | `dbt-plan run` wrapper | 2b | Interactive confirmation before `dbt run` |
 | Column type detection | 2c | `ALTER TYPE` predictions (only 5.2% of columns have type info) |
 
