@@ -58,6 +58,53 @@ class TestVariantAccess:
         ]
 
 
+class TestQualifiedStar:
+    def test_qualified_star_returns_star_list(self):
+        """SELECT t.* → returns ["*"] (same as unqualified star)."""
+        sql = "SELECT t.* FROM my_table t"
+        result = extract_columns(sql)
+        assert result == ["*"]
+
+    def test_qualified_star_mixed_with_columns(self):
+        """SELECT t.*, extra_col → returns ["*"] (cannot resolve)."""
+        sql = "SELECT t.*, extra_col FROM my_table t JOIN other o ON t.id = o.id"
+        result = extract_columns(sql)
+        assert result == ["*"]
+
+
+class TestUnaliasedExpressions:
+    def test_unaliased_case_returns_none(self):
+        """CASE without alias → None (ambiguity, cannot determine column name)."""
+        sql = "SELECT id, CASE WHEN status = 1 THEN 'active' ELSE 'inactive' END FROM users"
+        result = extract_columns(sql)
+        assert result is None
+
+    def test_all_aliased_returns_columns(self):
+        """All expressions aliased → returns column list normally."""
+        sql = "SELECT id, CASE WHEN status = 1 THEN 'active' ELSE 'inactive' END AS status_label FROM users"
+        result = extract_columns(sql)
+        assert result == ["id", "status_label"]
+
+
+class TestDialects:
+    def test_bigquery_dialect(self):
+        """BigQuery dialect parses ARRAY_AGG correctly."""
+        sql = "SELECT user_id, ARRAY_AGG(item ORDER BY ts) AS items FROM events GROUP BY 1"
+        result = extract_columns(sql, dialect="bigquery")
+        assert result == ["user_id", "items"]
+
+    def test_postgres_dialect(self):
+        """Postgres dialect parses JSONB operator correctly."""
+        sql = """SELECT id, data->>'email' AS email FROM users"""
+        result = extract_columns(sql, dialect="postgres")
+        assert result == ["id", "email"]
+
+    def test_default_dialect_is_snowflake(self):
+        """Default dialect is snowflake (backward compat)."""
+        sql = "SELECT id FROM t"
+        assert extract_columns(sql) == extract_columns(sql, dialect="snowflake")
+
+
 class TestEdgeCases:
     def test_parse_failure_returns_none(self):
         """Invalid SQL → returns None (never raises, never returns 'safe')."""

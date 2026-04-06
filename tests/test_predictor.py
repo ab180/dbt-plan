@@ -1,6 +1,6 @@
 """Tests for predict_ddl — DDL prediction rules."""
 
-from dbt_plan.predictor import DDLPrediction, DDLOperation, Safety, predict_ddl
+from dbt_plan.predictor import Safety, predict_ddl
 
 
 class TestTableAndView:
@@ -100,6 +100,18 @@ class TestIncrementalAppendAndSync:
         assert result.operations == []
         assert result.columns_added == []
         assert result.columns_removed == []
+
+    def test_sync_reorder_warning(self):
+        """incremental + sync_all_columns + columns reordered → WARNING."""
+        result = predict_ddl(
+            model_name="int_unified",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            base_columns=["a", "b", "c"],
+            current_columns=["c", "a", "b"],
+        )
+        assert result.safety == Safety.WARNING
+        assert any("REORDER" in op.operation for op in result.operations)
 
 
 class TestNewModel:
@@ -231,3 +243,57 @@ class TestEphemeralAndUnknown:
             current_columns=["a", "b"],
         )
         assert result.safety == Safety.WARNING
+
+    def test_removed_ephemeral_safe(self):
+        """Removed ephemeral model → SAFE (no physical object in Snowflake)."""
+        result = predict_ddl(
+            model_name="eph_model",
+            materialization="ephemeral",
+            on_schema_change=None,
+            base_columns=["a"],
+            current_columns=None,
+            status="removed",
+        )
+        assert result.safety == Safety.SAFE
+        assert not any(op.operation == "MODEL REMOVED" for op in result.operations)
+
+    def test_snapshot_materialization_warning(self):
+        """Snapshot materialization → WARNING (schema not auto-managed)."""
+        result = predict_ddl(
+            model_name="snap_model",
+            materialization="snapshot",
+            on_schema_change=None,
+            base_columns=["a", "b"],
+            current_columns=["a", "c"],
+        )
+        assert result.safety == Safety.WARNING
+        assert any("snapshot" in op.operation.lower() for op in result.operations)
+
+
+class TestAppendStaleColumns:
+    def test_append_with_removed_columns_warns(self):
+        """append_new_columns + columns removed from SQL → WARNING about stale data."""
+        result = predict_ddl(
+            model_name="inc_model",
+            materialization="incremental",
+            on_schema_change="append_new_columns",
+            base_columns=["a", "b", "c"],
+            current_columns=["a", "d"],
+        )
+        assert result.safety == Safety.WARNING
+        assert result.columns_added == ["d"]
+        assert sorted(result.columns_removed) == ["b", "c"]
+        assert any("STALE" in op.operation for op in result.operations)
+
+    def test_append_add_only_still_safe(self):
+        """append_new_columns + only additions → SAFE (no stale columns)."""
+        result = predict_ddl(
+            model_name="inc_model",
+            materialization="incremental",
+            on_schema_change="append_new_columns",
+            base_columns=["a", "b"],
+            current_columns=["a", "b", "c"],
+        )
+        assert result.safety == Safety.SAFE
+        assert result.columns_added == ["c"]
+        assert result.columns_removed == []

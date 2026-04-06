@@ -108,7 +108,9 @@ FROM {{ ref('stg_events') }}
         _dbt_compile(dbt_project)
 
         result = _dbt_plan(["check", "--project-dir", str(dbt_project)])
-        assert result.returncode == 1, f"Expected exit 1, got {result.returncode}. Output: {result.stdout}"
+        assert result.returncode == 1, (
+            f"Expected exit 1, got {result.returncode}. Output: {result.stdout}"
+        )
         assert "DESTRUCTIVE" in result.stdout
         assert "DROP COLUMN" in result.stdout
         assert "device_id" in result.stdout

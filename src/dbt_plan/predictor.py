@@ -56,7 +56,15 @@ def predict_ddl(
         DDLPrediction with safety level and predicted operations.
     """
     # Removed model → destructive (physical table/view will be orphaned)
+    # Exception: ephemeral models have no physical object in Snowflake
     if status == "removed":
+        if materialization == "ephemeral":
+            return DDLPrediction(
+                model_name=model_name,
+                materialization=materialization,
+                on_schema_change=on_schema_change,
+                safety=Safety.SAFE,
+            )
         return DDLPrediction(
             model_name=model_name,
             materialization=materialization,
@@ -89,6 +97,17 @@ def predict_ddl(
             materialization=materialization,
             on_schema_change=on_schema_change,
             safety=Safety.SAFE,
+        )
+
+    if materialization == "snapshot":
+        # dbt snapshots use CREATE TABLE IF NOT EXISTS + MERGE
+        # Schema changes are not auto-managed, so warn for review
+        return DDLPrediction(
+            model_name=model_name,
+            materialization=materialization,
+            on_schema_change=on_schema_change,
+            safety=Safety.WARNING,
+            operations=[DDLOperation("REVIEW REQUIRED (snapshot)")],
         )
 
     # Incremental: depends on on_schema_change
@@ -159,19 +178,31 @@ def predict_ddl(
 
     if osc == "append_new_columns":
         ops = [DDLOperation("ADD COLUMN", col) for col in added]
+        # Columns removed from SQL will remain in the physical table as stale data
+        safety = Safety.WARNING if removed else Safety.SAFE
+        if removed:
+            ops.append(DDLOperation("STALE COLUMNS (not populated)"))
         return DDLPrediction(
             model_name=model_name,
             materialization=materialization,
             on_schema_change=osc,
-            safety=Safety.SAFE,
+            safety=safety,
             operations=ops,
             columns_added=added,
+            columns_removed=removed,
         )
 
     if osc == "sync_all_columns":
         ops = [DDLOperation("ADD COLUMN", col) for col in added]
         ops += [DDLOperation("DROP COLUMN", col) for col in removed]
         safety = Safety.DESTRUCTIVE if removed else Safety.SAFE
+
+        # Detect column reordering: sync_all_columns drops + re-adds
+        # columns to match the new order even when the column set is unchanged
+        if not added and not removed and base_columns != current_columns:
+            ops = [DDLOperation("COLUMNS REORDERED")]
+            safety = Safety.WARNING
+
         return DDLPrediction(
             model_name=model_name,
             materialization=materialization,

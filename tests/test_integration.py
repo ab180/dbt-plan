@@ -23,9 +23,7 @@ def project(tmp_path):
         "SELECT\n    event_id,\n    app_id,\n    data__device,\n"
         "    data__user,\n    event_date\nFROM all_events\n"
     )
-    (base_dir / "dim_device.sql").write_text(
-        "SELECT device_id, country FROM raw_devices\n"
-    )
+    (base_dir / "dim_device.sql").write_text("SELECT device_id, country FROM raw_devices\n")
 
     # Current compiled SQL (modified)
     current_dir = tmp_path / "current"
@@ -37,9 +35,7 @@ def project(tmp_path):
     (current_dir / "dim_device.sql").write_text(
         "SELECT device_id, country, platform FROM raw_devices\n"
     )
-    (current_dir / "new_model.sql").write_text(
-        "SELECT id, name FROM new_table\n"
-    )
+    (current_dir / "new_model.sql").write_text("SELECT id, name FROM new_table\n")
 
     # Manifest
     manifest_data = {
@@ -164,9 +160,12 @@ class TestCLIExitCode:
             [
                 "dbt-plan",
                 "check",
-                "--project-dir", str(tmp_path),
-                "--base-dir", str(snapshot_dir),
-                "--format", "text",
+                "--project-dir",
+                str(tmp_path),
+                "--base-dir",
+                str(snapshot_dir),
+                "--format",
+                "text",
             ],
         )
         with pytest.raises(SystemExit) as exc_info:
@@ -188,15 +187,14 @@ class TestCLIExitCode:
 
         # Base manifest includes old_removed, current manifest doesn't
         import json as json_mod
+
         base_manifest_data = json_mod.loads(manifest_path.read_text())
         base_manifest_data["nodes"]["model.test.old_removed"] = {
             "name": "old_removed",
             "config": {"materialized": "table"},
         }
         base_manifest_data["child_map"]["model.test.old_removed"] = []
-        (snapshot_dir / "manifest.json").write_text(
-            json_mod.dumps(base_manifest_data)
-        )
+        (snapshot_dir / "manifest.json").write_text(json_mod.dumps(base_manifest_data))
 
         # Current target
         target_models = tmp_path / "target" / "compiled" / "test" / "models"
@@ -210,9 +208,12 @@ class TestCLIExitCode:
             [
                 "dbt-plan",
                 "check",
-                "--project-dir", str(tmp_path),
-                "--base-dir", str(snapshot_dir),
-                "--format", "text",
+                "--project-dir",
+                str(tmp_path),
+                "--base-dir",
+                str(snapshot_dir),
+                "--format",
+                "text",
             ],
         )
         with pytest.raises(SystemExit) as exc_info:

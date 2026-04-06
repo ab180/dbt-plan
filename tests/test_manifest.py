@@ -2,7 +2,13 @@
 
 import json
 
-from dbt_plan.manifest import ModelNode, find_downstream, find_node_by_name, load_manifest
+from dbt_plan.manifest import (
+    build_node_index,
+    find_downstream,
+    find_downstream_batch,
+    find_node_by_name,
+    load_manifest,
+)
 
 
 class TestFindDownstream:
@@ -86,3 +92,271 @@ class TestLoadManifest:
         manifest_path.write_text(json.dumps(data))
         result = load_manifest(str(manifest_path))
         assert result == data
+
+    def test_load_manifest_filters_extra_keys(self, tmp_path):
+        """load_manifest keeps only nodes and child_map, discarding macros/sources/etc."""
+        manifest_path = tmp_path / "manifest.json"
+        data = {
+            "nodes": {"model.p.m": {"name": "m", "config": {}}},
+            "child_map": {"model.p.m": []},
+            "macros": {"macro.p.x": {}},
+            "sources": {"source.p.s": {}},
+            "docs": {"doc.p.d": {}},
+            "metadata": {"dbt_version": "1.7.0"},
+        }
+        manifest_path.write_text(json.dumps(data))
+        result = load_manifest(str(manifest_path))
+        assert set(result.keys()) == {"nodes", "child_map"}
+        assert "macros" not in result
+        assert "sources" not in result
+        assert "docs" not in result
+        assert "metadata" not in result
+
+    def test_load_manifest_missing_keys_default_empty(self, tmp_path):
+        """load_manifest returns empty dicts when nodes/child_map are absent."""
+        manifest_path = tmp_path / "manifest.json"
+        manifest_path.write_text(json.dumps({"metadata": {}}))
+        result = load_manifest(str(manifest_path))
+        assert result == {"nodes": {}, "child_map": {}}
+
+
+class TestBuildNodeIndex:
+    def test_builds_index_from_model_nodes(self):
+        """build_node_index creates name→ModelNode mapping for model nodes."""
+        manifest = {
+            "nodes": {
+                "model.p.dim_device": {
+                    "name": "dim_device",
+                    "config": {
+                        "materialized": "table",
+                        "on_schema_change": None,
+                    },
+                },
+                "model.p.fct_events": {
+                    "name": "fct_events",
+                    "config": {
+                        "materialized": "incremental",
+                        "on_schema_change": "sync_all_columns",
+                    },
+                },
+            },
+        }
+        index = build_node_index(manifest)
+        assert len(index) == 2
+        assert index["dim_device"].node_id == "model.p.dim_device"
+        assert index["dim_device"].materialization == "table"
+        assert index["fct_events"].on_schema_change == "sync_all_columns"
+
+    def test_skips_non_model_nodes(self):
+        """build_node_index ignores test, source, seed nodes."""
+        manifest = {
+            "nodes": {
+                "model.p.m": {"name": "m", "config": {"materialized": "table"}},
+                "test.p.not_null": {"name": "not_null", "config": {}},
+                "seed.p.s": {"name": "s", "config": {}},
+            },
+        }
+        index = build_node_index(manifest)
+        assert list(index.keys()) == ["m"]
+
+    def test_first_model_wins_on_duplicate_names(self):
+        """build_node_index keeps first model when names collide."""
+        manifest = {
+            "nodes": {
+                "model.p1.dup": {
+                    "name": "dup",
+                    "config": {"materialized": "table"},
+                },
+                "model.p2.dup": {
+                    "name": "dup",
+                    "config": {"materialized": "view"},
+                },
+            },
+        }
+        index = build_node_index(manifest)
+        assert len(index) == 1
+        assert index["dup"].materialization == "table"
+
+    def test_empty_manifest(self):
+        """build_node_index returns empty dict for empty manifest."""
+        assert build_node_index({}) == {}
+        assert build_node_index({"nodes": {}}) == {}
+
+    def test_defaults_materialization_to_table(self):
+        """build_node_index defaults materialization to 'table' when missing."""
+        manifest = {
+            "nodes": {
+                "model.p.m": {
+                    "name": "m",
+                    "config": {},
+                },
+            },
+        }
+        index = build_node_index(manifest)
+        assert index["m"].materialization == "table"
+        assert index["m"].on_schema_change is None
+
+
+class TestFindDownstreamBatch:
+    def test_batch_matches_individual_calls(self):
+        """Batch results match individual find_downstream calls."""
+        child_map = {
+            "model.p.a": ["model.p.b", "model.p.c"],
+            "model.p.b": ["model.p.d"],
+            "model.p.c": ["model.p.d"],
+            "model.p.d": [],
+        }
+        node_ids = ["model.p.a", "model.p.b", "model.p.c"]
+
+        batch = find_downstream_batch(node_ids, child_map)
+        for nid in node_ids:
+            individual = find_downstream(nid, child_map)
+            assert batch[nid] == individual, f"Mismatch for {nid}"
+
+    def test_batch_shared_subtrees_efficient(self):
+        """Batch correctly handles shared downstream subtrees."""
+        child_map = {
+            "model.p.a": ["model.p.shared"],
+            "model.p.b": ["model.p.shared"],
+            "model.p.shared": ["model.p.leaf"],
+        }
+        batch = find_downstream_batch(["model.p.a", "model.p.b"], child_map)
+        assert "model.p.shared" in batch["model.p.a"]
+        assert "model.p.leaf" in batch["model.p.a"]
+        assert "model.p.shared" in batch["model.p.b"]
+        assert "model.p.leaf" in batch["model.p.b"]
+
+    def test_batch_empty_input(self):
+        """Empty input returns empty dict."""
+        assert find_downstream_batch([], {"a": ["b"]}) == {}
+
+
+class TestManifestColumns:
+    def test_build_node_index_extracts_columns(self):
+        """Manifest column definitions are stored in ModelNode."""
+        manifest = {
+            "nodes": {
+                "model.p.m": {
+                    "name": "m",
+                    "config": {"materialized": "incremental"},
+                    "columns": {"id": {}, "Name": {}, "EMAIL": {}},
+                },
+            },
+        }
+        index = build_node_index(manifest)
+        assert index["m"].columns == ("id", "name", "email")  # lowercased
+
+    def test_empty_columns_defaults_to_empty_tuple(self):
+        """Models without column definitions get empty tuple."""
+        manifest = {
+            "nodes": {
+                "model.p.m": {
+                    "name": "m",
+                    "config": {"materialized": "table"},
+                },
+            },
+        }
+        index = build_node_index(manifest)
+        assert index["m"].columns == ()
+
+
+class TestIncludePackages:
+    def test_exclude_packages_filters_non_root(self):
+        """include_packages=False excludes models from non-root packages."""
+        manifest = {
+            "nodes": {
+                # Root project has 3 models (most common package)
+                "model.myproject.dim_user": {
+                    "name": "dim_user",
+                    "config": {"materialized": "table"},
+                },
+                "model.myproject.fct_events": {
+                    "name": "fct_events",
+                    "config": {"materialized": "incremental"},
+                },
+                "model.myproject.stg_raw": {
+                    "name": "stg_raw",
+                    "config": {"materialized": "view"},
+                },
+                # External package model
+                "model.dbt_utils.surrogate_key": {
+                    "name": "surrogate_key",
+                    "config": {"materialized": "ephemeral"},
+                },
+                # Another external package
+                "model.fivetran.stg_stripe": {
+                    "name": "stg_stripe",
+                    "config": {"materialized": "table"},
+                },
+            },
+        }
+        index = build_node_index(manifest, include_packages=False)
+        assert sorted(index.keys()) == ["dim_user", "fct_events", "stg_raw"]
+        assert "surrogate_key" not in index
+        assert "stg_stripe" not in index
+
+    def test_include_packages_includes_all(self):
+        """include_packages=True includes models from all packages."""
+        manifest = {
+            "nodes": {
+                "model.myproject.dim_user": {
+                    "name": "dim_user",
+                    "config": {"materialized": "table"},
+                },
+                "model.myproject.fct_events": {
+                    "name": "fct_events",
+                    "config": {"materialized": "incremental"},
+                },
+                "model.dbt_utils.surrogate_key": {
+                    "name": "surrogate_key",
+                    "config": {"materialized": "ephemeral"},
+                },
+                "model.fivetran.stg_stripe": {
+                    "name": "stg_stripe",
+                    "config": {"materialized": "table"},
+                },
+            },
+        }
+        index = build_node_index(manifest, include_packages=True)
+        assert sorted(index.keys()) == ["dim_user", "fct_events", "stg_stripe", "surrogate_key"]
+
+    def test_single_package_all_included_regardless(self):
+        """With only one package, include_packages=False still includes all models."""
+        manifest = {
+            "nodes": {
+                "model.myproject.m1": {
+                    "name": "m1",
+                    "config": {"materialized": "table"},
+                },
+                "model.myproject.m2": {
+                    "name": "m2",
+                    "config": {"materialized": "view"},
+                },
+            },
+        }
+        index = build_node_index(manifest, include_packages=False)
+        assert sorted(index.keys()) == ["m1", "m2"]
+
+    def test_exclude_packages_root_detected_by_most_common(self):
+        """Root project is detected as the package with the most models."""
+        manifest = {
+            "nodes": {
+                # 2 models from "app"
+                "model.app.a": {
+                    "name": "a",
+                    "config": {"materialized": "table"},
+                },
+                "model.app.b": {
+                    "name": "b",
+                    "config": {"materialized": "table"},
+                },
+                # 1 model from "pkg" — should be excluded
+                "model.pkg.c": {
+                    "name": "c",
+                    "config": {"materialized": "table"},
+                },
+            },
+        }
+        index = build_node_index(manifest, include_packages=False)
+        assert sorted(index.keys()) == ["a", "b"]
+        assert "c" not in index
