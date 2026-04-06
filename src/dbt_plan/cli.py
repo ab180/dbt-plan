@@ -226,6 +226,18 @@ def _do_stats(args: argparse.Namespace) -> None:
             if remaining:
                 print(f"  Remaining without fallback: {remaining} (add column docs to resolve)")
 
+    # Cascade risk: incremental models with fail downstream
+    fail_chains = 0
+    for nid, node in manifest.get("nodes", {}).items():
+        if not nid.startswith("model."):
+            continue
+        config = node.get("config", {})
+        if config.get("on_schema_change") == "fail" and config.get("materialized") == "incremental":
+            fail_chains += 1
+    if fail_chains:
+        print(f"\nCascade risk: {fail_chains} incremental model(s) with on_schema_change=fail")
+        print("  These will break if upstream schema changes")
+
     # Readiness score
     monitorable = incremental_osc.get("sync_all_columns", 0) + incremental_osc.get("fail", 0)
     safe = mat_counts.get("table", 0) + mat_counts.get("view", 0) + mat_counts.get("ephemeral", 0)
