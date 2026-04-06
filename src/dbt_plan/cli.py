@@ -232,7 +232,10 @@ def _do_stats(args: argparse.Namespace) -> None:
         if not nid.startswith("model."):
             continue
         config = node.get("config", {})
-        if config.get("on_schema_change") == "fail" and config.get("materialized") == "incremental":
+        if (
+            config.get("on_schema_change") == "fail"
+            and config.get("materialized") == "incremental"
+        ):
             fail_chains += 1
     if fail_chains:
         print(f"\nCascade risk: {fail_chains} incremental model(s) with on_schema_change=fail")
