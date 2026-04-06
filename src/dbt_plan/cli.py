@@ -246,7 +246,7 @@ def _do_check(args: argparse.Namespace) -> int:
         find_downstream_batch,
         load_manifest,
     )
-    from dbt_plan.predictor import Safety, predict_ddl
+    from dbt_plan.predictor import DDLPrediction, Safety, predict_ddl
 
     project_dir = Path(args.project_dir)
 
@@ -439,13 +439,90 @@ def _do_check(args: argparse.Namespace) -> int:
         model_node_ids[diff.model_name] = node.node_id
 
     # 3b. Batch downstream computation (memoized, avoids redundant BFS)
+    from dbt_plan.predictor import DownstreamImpact
+
     all_downstream = find_downstream_batch(list(model_node_ids.values()), child_map)
     downstream_map: dict[str, list[str]] = {}
-    for model_name, node_id in model_node_ids.items():
-        downstream = all_downstream.get(node_id, [])
-        if downstream:
-            downstream_names = [nid.split(".")[-1] for nid in downstream]
-            downstream_map[model_name] = downstream_names
+
+    # 3c. Cascade impact analysis
+    for i, pred in enumerate(predictions):
+        node_id = model_node_ids.get(pred.model_name)
+        if not node_id:
+            continue
+        downstream_nids = all_downstream.get(node_id, [])
+        if not downstream_nids:
+            continue
+
+        downstream_names = [nid.split(".")[-1] for nid in downstream_nids]
+        downstream_map[pred.model_name] = downstream_names
+
+        # Only analyze cascade if there are dropped or added columns
+        if not pred.columns_removed and not pred.columns_added:
+            continue
+
+        impacts: list[DownstreamImpact] = []
+        for ds_nid in downstream_nids:
+            ds_node = node_index.get(ds_nid.split(".")[-1])
+            if not ds_node:
+                ds_node = base_node_index.get(ds_nid.split(".")[-1])
+            if not ds_node:
+                continue
+
+            ds_mat = ds_node.materialization
+            ds_osc = ds_node.on_schema_change or "ignore"
+
+            # table/view: full rebuild, always safe
+            if ds_mat in ("table", "view", "ephemeral"):
+                continue
+
+            # incremental + fail: any upstream schema change → build failure
+            if ds_osc == "fail" and (pred.columns_added or pred.columns_removed):
+                impacts.append(
+                    DownstreamImpact(
+                        model_name=ds_node.name,
+                        materialization=ds_mat,
+                        on_schema_change=ds_osc,
+                        risk="build_failure",
+                        reason="upstream schema changed, on_schema_change=fail",
+                    )
+                )
+                continue
+
+            # Check if downstream SQL references dropped columns
+            if pred.columns_removed:
+                # Find downstream's compiled SQL
+                ds_sql = None
+                if current_compiled:
+                    ds_files = list(current_compiled.rglob(f"{ds_node.name}.sql"))
+                    if ds_files:
+                        ds_sql = ds_files[0].read_text().lower()
+
+                if ds_sql:
+                    broken_refs = [col for col in pred.columns_removed if col.lower() in ds_sql]
+                    if broken_refs:
+                        impacts.append(
+                            DownstreamImpact(
+                                model_name=ds_node.name,
+                                materialization=ds_mat,
+                                on_schema_change=ds_osc,
+                                risk="broken_ref",
+                                reason=f"references dropped column(s): {', '.join(broken_refs)}",
+                            )
+                        )
+
+        if impacts:
+            # Replace prediction with one that includes downstream impacts
+            predictions[i] = DDLPrediction(
+                model_name=pred.model_name,
+                materialization=pred.materialization,
+                on_schema_change=pred.on_schema_change,
+                safety=pred.safety,
+                operations=pred.operations,
+                columns_added=pred.columns_added,
+                columns_removed=pred.columns_removed,
+                downstream_impacts=impacts,
+            )
+            _log(f"  Cascade impacts for {pred.model_name}: {len(impacts)}")
 
     # 4. Format output
     check_result = CheckResult(predictions, downstream_map, parse_failures, skipped_models)

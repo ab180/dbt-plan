@@ -70,6 +70,13 @@ def format_text(result: CheckResult, *, color: bool | None = None) -> str:
         if downstream:
             names = ", ".join(downstream)
             lines.append(f"  Downstream: {names} ({len(downstream)} model(s))")
+        # Cascade impacts
+        for impact in pred.downstream_impacts:
+            risk_label = _colored(
+                impact.risk.upper(),
+                Safety.WARNING if impact.risk != "broken_ref" else Safety.DESTRUCTIVE,
+            )
+            lines.append(f"  >> {risk_label}  {impact.model_name}: {impact.reason}")
         lines.append("")
 
     if result.parse_failures:
@@ -122,6 +129,11 @@ def format_github(result: CheckResult) -> str:
         if downstream:
             names = ", ".join(downstream)
             lines.append(f"- Downstream: {names} ({len(downstream)} model(s))")
+        for impact in pred.downstream_impacts:
+            risk_icon = "\u26a0\ufe0f" if impact.risk == "build_failure" else "\U0001f534"
+            lines.append(
+                f"- {risk_icon} **{impact.risk.upper()}** `{impact.model_name}`: {impact.reason}"
+            )
         lines.append("")
 
     if result.parse_failures:
@@ -160,6 +172,15 @@ def format_json(result: CheckResult) -> str:
         downstream = result.downstream_map.get(pred.model_name, [])
         if downstream:
             model["downstream"] = downstream
+        if pred.downstream_impacts:
+            model["downstream_impacts"] = [
+                {
+                    "model_name": imp.model_name,
+                    "risk": imp.risk,
+                    "reason": imp.reason,
+                }
+                for imp in pred.downstream_impacts
+            ]
         models.append(model)
 
     output = {

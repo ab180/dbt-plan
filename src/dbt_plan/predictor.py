@@ -21,6 +21,17 @@ class DDLOperation:
 
 
 @dataclass(frozen=True)
+class DownstreamImpact:
+    """Predicted impact on a downstream model."""
+
+    model_name: str
+    materialization: str
+    on_schema_change: str | None
+    risk: str  # "safe", "build_failure", "broken_ref", "warning"
+    reason: str  # human-readable explanation
+
+
+@dataclass(frozen=True)
 class DDLPrediction:
     """Complete DDL prediction for a model."""
 
@@ -31,6 +42,7 @@ class DDLPrediction:
     operations: list[DDLOperation] = field(default_factory=list)
     columns_added: list[str] = field(default_factory=list)
     columns_removed: list[str] = field(default_factory=list)
+    downstream_impacts: list[DownstreamImpact] = field(default_factory=list)
 
 
 def predict_ddl(
