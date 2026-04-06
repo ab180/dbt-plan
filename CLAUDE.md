@@ -30,7 +30,7 @@ make test
 - sqlglot 외 런타임 의존성 추가 금지
 - 파싱 실패 시 safe 반환 절대 금지 — None 반환 → 호출자가 review로 처리
 - 테스트 없는 기능 추가 금지 (TDD)
-- SELECT * → ["*"] 반환 (manifest column fallback 지원)
+- SELECT \* → ["*"] 반환 (manifest column fallback 지원)
 - Multi-dialect 지원 via --dialect (기본값: snowflake)
 
 ## DDL Prediction Rules
