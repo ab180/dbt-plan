@@ -2,35 +2,36 @@
 
 ## Overview
 
-dbt compiled SQL을 파싱하여 Snowflake DDL 영향을 예측하는 CLI 도구.
-`terraform plan`의 dbt 버전.
+dbt compiled SQL을 파싱하여 DDL 영향을 예측하는 CLI 도구.
+`terraform plan`의 dbt 버전. 모든 warehouse 지원 (Snowflake, BigQuery, Redshift, Postgres 등).
 
 ## Architecture
 
 ```
 src/dbt_plan/
-├── columns.py      # SQLGlot 기반 컬럼 추출
+├── columns.py      # SQLGlot 기반 컬럼 추출 (multi-dialect)
+├── config.py       # .dbt-plan.yml + env var 설정
 ├── predictor.py    # DDL 예측 규칙 (materialization × on_schema_change)
-├── manifest.py     # manifest.json 파싱, child_map, find_node
-├── diff.py         # compiled SQL 디렉토리 비교
-├── formatter.py    # github / terminal 출력
-└── cli.py          # CLI entry point (check, snapshot)
+├── manifest.py     # manifest.json 파싱, node index, downstream BFS
+├── diff.py         # compiled SQL 디렉토리 비교 (캐싱)
+├── formatter.py    # text (color) / github / json 출력
+└── cli.py          # CLI: snapshot, check, init, stats
 ```
 
 ## Development
 
 ```bash
-pip install -e ".[test]"
-pytest -v
+uv sync --extra test
+make test
 ```
 
 ## Rules
 
-- Snowflake dialect only (현재)
 - sqlglot 외 런타임 의존성 추가 금지
 - 파싱 실패 시 safe 반환 절대 금지 — None 반환 → 호출자가 review로 처리
 - 테스트 없는 기능 추가 금지 (TDD)
-- SELECT * → ["*"] 반환 (INFORMATION_SCHEMA fallback 용)
+- SELECT * → ["*"] 반환 (manifest column fallback 지원)
+- Multi-dialect 지원 via --dialect (기본값: snowflake)
 
 ## DDL Prediction Rules
 
@@ -46,7 +47,9 @@ pytest -v
 ## Testing
 
 ```bash
-pytest -v                    # all tests
+make test                    # all tests
+make test-cov                # with coverage
+make lint                    # ruff check
 pytest tests/test_columns.py # specific module
 ```
 

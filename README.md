@@ -1,8 +1,8 @@
 # dbt-plan
 
-Preview what DDL changes `dbt run` will execute on Snowflake — before you run it.
+Preview what DDL changes `dbt run` will execute — before you run it.
 
-Like `terraform plan` for dbt.
+Like `terraform plan` for dbt. Works with any warehouse (Snowflake, BigQuery, Redshift, Postgres, etc.).
 
 ## Goal
 

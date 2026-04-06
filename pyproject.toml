@@ -1,12 +1,12 @@
 [project]
 name = "dbt-plan"
 version = "0.2.0"
-description = "Preview what DDL changes dbt run will execute on Snowflake"
+description = "Preview what DDL changes dbt run will execute — like terraform plan for dbt"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 authors = [{ name = "ab180" }]
-keywords = ["dbt", "snowflake", "ddl", "impact-analysis", "ci"]
+keywords = ["dbt", "ddl", "impact-analysis", "ci", "snowflake", "bigquery", "redshift"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",

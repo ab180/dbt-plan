@@ -469,7 +469,7 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(
         prog="dbt-plan",
-        description="Preview what DDL changes dbt run will execute on Snowflake",
+        description="Preview what DDL changes dbt run will execute",
         epilog=(
             "typical workflow:\n"
             "  dbt compile\n"
