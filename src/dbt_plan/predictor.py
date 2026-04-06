@@ -56,7 +56,7 @@ def predict_ddl(
         DDLPrediction with safety level and predicted operations.
     """
     # Removed model → destructive (physical table/view will be orphaned)
-    # Exception: ephemeral models have no physical object in Snowflake
+    # Exception: ephemeral models have no physical object
     if status == "removed":
         if materialization == "ephemeral":
             return DDLPrediction(
