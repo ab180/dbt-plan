@@ -297,3 +297,53 @@ class TestAppendStaleColumns:
         assert result.safety == Safety.SAFE
         assert result.columns_added == ["c"]
         assert result.columns_removed == []
+
+
+class TestDownstreamImpact:
+    def test_downstream_impact_dataclass(self):
+        """DownstreamImpact stores risk and reason."""
+        from dbt_plan.predictor import DownstreamImpact
+
+        impact = DownstreamImpact(
+            model_name="fct_metrics",
+            materialization="incremental",
+            on_schema_change="fail",
+            risk="build_failure",
+            reason="upstream schema changed",
+        )
+        assert impact.risk == "build_failure"
+        assert impact.model_name == "fct_metrics"
+
+    def test_prediction_with_downstream_impacts(self):
+        """DDLPrediction can hold downstream_impacts."""
+        from dbt_plan.predictor import DDLOperation, DDLPrediction, DownstreamImpact
+
+        impact = DownstreamImpact(
+            model_name="fct_metrics",
+            materialization="incremental",
+            on_schema_change="fail",
+            risk="broken_ref",
+            reason="references dropped column(s): old_col",
+        )
+        pred = DDLPrediction(
+            model_name="int_unified",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            safety=Safety.DESTRUCTIVE,
+            operations=[DDLOperation("DROP COLUMN", "old_col")],
+            columns_removed=["old_col"],
+            downstream_impacts=[impact],
+        )
+        assert len(pred.downstream_impacts) == 1
+        assert pred.downstream_impacts[0].risk == "broken_ref"
+
+    def test_default_empty_downstream_impacts(self):
+        """DDLPrediction defaults to empty downstream_impacts."""
+        pred = predict_ddl(
+            model_name="m",
+            materialization="table",
+            on_schema_change=None,
+            base_columns=["a"],
+            current_columns=["a", "b"],
+        )
+        assert pred.downstream_impacts == []
