@@ -16,6 +16,13 @@ jobs:
           python-version: "3.12"
       - run: pip install build
       - run: python -m build
+
+      # PyPI first — fail fast before creating GitHub Release
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
+      # GitHub Release only after PyPI succeeds
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
