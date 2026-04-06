@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      id-token: write  # Required for trusted publishing (PyPI)
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -18,13 +18,13 @@ jobs:
       - run: pip install build
       - run: python -m build
 
-      # GitHub Release
+      # PyPI first — fail fast before creating GitHub Release
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
+      # GitHub Release only after PyPI succeeds
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
           generate_release_notes: true
-
-      # PyPI
-      - uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
