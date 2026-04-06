@@ -37,8 +37,7 @@ def diff_compiled_dirs(
     for f in base_dir.rglob("*.sql"):
         if f.stem in base_models:
             raise ValueError(
-                f"Duplicate model name '{f.stem}' in {base_dir}: "
-                f"{base_models[f.stem]} vs {f}"
+                f"Duplicate model name '{f.stem}' in {base_dir}: {base_models[f.stem]} vs {f}"
             )
         base_models[f.stem] = f
 
@@ -60,9 +59,7 @@ def diff_compiled_dirs(
 
         if base_path and current_path:
             # Fast path: different file sizes → definitely modified (skip content read)
-            definitely_different = (
-                base_path.stat().st_size != current_path.stat().st_size
-            )
+            definitely_different = base_path.stat().st_size != current_path.stat().st_size
             if definitely_different:
                 diffs.append(ModelDiff(name, "modified", base_path, current_path))
             else:
@@ -71,8 +68,9 @@ def diff_compiled_dirs(
                 current_text = current_path.read_text()
                 if base_text != current_text:
                     diffs.append(
-                        ModelDiff(name, "modified", base_path, current_path,
-                                  base_text, current_text)
+                        ModelDiff(
+                            name, "modified", base_path, current_path, base_text, current_text
+                        )
                     )
         elif current_path and not base_path:
             diffs.append(ModelDiff(name, "added", None, current_path))

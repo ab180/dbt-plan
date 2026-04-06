@@ -58,9 +58,7 @@ class Config:
                 # Parse bracket list: [model1, model2] or comma-separated
                 value = value.strip("[]")
                 self.ignore_models = [
-                    m.strip().strip("'\"")
-                    for m in value.split(",")
-                    if m.strip()
+                    m.strip().strip("'\"") for m in value.split(",") if m.strip()
                 ]
             elif key == "warning_exit_code":
                 try:

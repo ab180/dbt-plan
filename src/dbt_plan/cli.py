@@ -31,9 +31,7 @@ def _find_compiled_dir(target_dir: Path) -> Path | None:
 
     # Standard layout: target/compiled/{project_name}/models/
     candidates = [
-        d / "models"
-        for d in sorted(compiled.iterdir())
-        if d.is_dir() and (d / "models").exists()
+        d / "models" for d in sorted(compiled.iterdir()) if d.is_dir() and (d / "models").exists()
     ]
     if not candidates:
         return None
@@ -156,9 +154,7 @@ def _do_stats(args: argparse.Namespace) -> None:
 
     project_dir = Path(args.project_dir)
     target_dir = project_dir / args.target_dir
-    manifest_path = Path(
-        args.manifest if args.manifest else str(target_dir / "manifest.json")
-    )
+    manifest_path = Path(args.manifest if args.manifest else str(target_dir / "manifest.json"))
 
     if not manifest_path.exists():
         print(f"Error: manifest.json not found: {manifest_path}", file=sys.stderr)
@@ -272,9 +268,7 @@ def _do_check(args: argparse.Namespace) -> int:
 
     target_dir = project_dir / args.target_dir
     base_dir = project_dir / Path(args.base_dir)
-    manifest_path = Path(
-        args.manifest if args.manifest else str(target_dir / "manifest.json")
-    )
+    manifest_path = Path(args.manifest if args.manifest else str(target_dir / "manifest.json"))
 
     # Validate paths
     if not base_dir.exists():
@@ -328,9 +322,7 @@ def _do_check(args: argparse.Namespace) -> int:
     # Filter ignored models from config
     if config.ignore_models:
         before = len(model_diffs)
-        model_diffs = [
-            d for d in model_diffs if d.model_name not in config.ignore_models
-        ]
+        model_diffs = [d for d in model_diffs if d.model_name not in config.ignore_models]
         ignored = before - len(model_diffs)
         if ignored:
             _log(f"Ignored {ignored} model(s) per config: {config.ignore_models}")
@@ -368,9 +360,7 @@ def _do_check(args: argparse.Namespace) -> int:
                 child_map[k] = v
 
     # Build O(1) lookup indexes instead of O(N) scan per model
-    node_index = build_node_index(
-        manifest, include_packages=config.include_packages
-    )
+    node_index = build_node_index(manifest, include_packages=config.include_packages)
     base_node_index = (
         build_node_index(base_manifest, include_packages=config.include_packages)
         if base_manifest
@@ -449,9 +439,7 @@ def _do_check(args: argparse.Namespace) -> int:
         model_node_ids[diff.model_name] = node.node_id
 
     # 3b. Batch downstream computation (memoized, avoids redundant BFS)
-    all_downstream = find_downstream_batch(
-        list(model_node_ids.values()), child_map
-    )
+    all_downstream = find_downstream_batch(list(model_node_ids.values()), child_map)
     downstream_map: dict[str, list[str]] = {}
     for model_name, node_id in model_node_ids.items():
         downstream = all_downstream.get(node_id, [])
@@ -497,29 +485,19 @@ def main() -> None:
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument(
-        "--version", action="version", version=f"%(prog)s {__version__}"
-    )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     subparsers = parser.add_subparsers(dest="command")
 
     # snapshot
-    snap = subparsers.add_parser(
-        "snapshot", help="Save current compiled state as baseline"
-    )
-    snap.add_argument(
-        "--project-dir", default=".", help="dbt project directory (default: .)"
-    )
+    snap = subparsers.add_parser("snapshot", help="Save current compiled state as baseline")
+    snap.add_argument("--project-dir", default=".", help="dbt project directory (default: .)")
     snap.add_argument(
         "--target-dir", default="target", help="dbt target directory (default: target)"
     )
 
     # check
-    check = subparsers.add_parser(
-        "check", help="Diff compiled SQL and predict DDL impact"
-    )
-    check.add_argument(
-        "--project-dir", default=".", help="dbt project directory (default: .)"
-    )
+    check = subparsers.add_parser("check", help="Diff compiled SQL and predict DDL impact")
+    check.add_argument("--project-dir", default=".", help="dbt project directory (default: .)")
     check.add_argument(
         "--target-dir", default="target", help="dbt target directory (default: target)"
     )
@@ -565,25 +543,20 @@ def main() -> None:
     )
 
     # init
-    init_cmd = subparsers.add_parser(
-        "init", help="Generate a sample .dbt-plan.yml config file"
-    )
-    init_cmd.add_argument(
-        "--project-dir", default=".", help="dbt project directory (default: .)"
-    )
+    init_cmd = subparsers.add_parser("init", help="Generate a sample .dbt-plan.yml config file")
+    init_cmd.add_argument("--project-dir", default=".", help="dbt project directory (default: .)")
 
     # stats
     stats_cmd = subparsers.add_parser(
         "stats", help="Analyze project: materializations, schema change settings, SELECT * usage"
     )
-    stats_cmd.add_argument(
-        "--project-dir", default=".", help="dbt project directory (default: .)"
-    )
+    stats_cmd.add_argument("--project-dir", default=".", help="dbt project directory (default: .)")
     stats_cmd.add_argument(
         "--target-dir", default="target", help="dbt target directory (default: target)"
     )
     stats_cmd.add_argument(
-        "--manifest", default=None,
+        "--manifest",
+        default=None,
         help="Path to manifest.json (default: {target-dir}/manifest.json)",
     )
 

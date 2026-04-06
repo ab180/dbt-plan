@@ -1,6 +1,5 @@
 """Tests for configuration loading from .dbt-plan.yml and env vars."""
 
-
 from dbt_plan.config import Config
 
 
@@ -19,9 +18,7 @@ class TestConfigDefaults:
 class TestConfigFile:
     def test_load_ignore_models(self, tmp_path):
         """Parses ignore_models list from config file."""
-        (tmp_path / ".dbt-plan.yml").write_text(
-            "ignore_models: [test_model, staging_temp]\n"
-        )
+        (tmp_path / ".dbt-plan.yml").write_text("ignore_models: [test_model, staging_temp]\n")
         config = Config.load(tmp_path)
         assert config.ignore_models == ["test_model", "staging_temp"]
 
@@ -46,10 +43,7 @@ class TestConfigFile:
     def test_ignores_comments_and_blanks(self, tmp_path):
         """Comments and blank lines are skipped."""
         (tmp_path / ".dbt-plan.yml").write_text(
-            "# This is a comment\n"
-            "\n"
-            "warning_exit_code: 0\n"
-            "# Another comment\n"
+            "# This is a comment\n\nwarning_exit_code: 0\n# Another comment\n"
         )
         config = Config.load(tmp_path)
         assert config.warning_exit_code == 0

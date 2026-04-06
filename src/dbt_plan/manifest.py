@@ -35,9 +35,7 @@ def load_manifest(manifest_path: str | Path) -> dict:
     }
 
 
-def build_node_index(
-    manifest: dict, *, include_packages: bool = False
-) -> dict[str, ModelNode]:
+def build_node_index(manifest: dict, *, include_packages: bool = False) -> dict[str, ModelNode]:
     """Build a name → ModelNode index for O(1) lookups.
 
     Args:
@@ -69,9 +67,7 @@ def build_node_index(
         if name and name not in index:
             config = node.get("config", {})
             # Extract column names from manifest (used as fallback for SELECT *)
-            manifest_cols = tuple(
-                c.lower() for c in node.get("columns", {})
-            )
+            manifest_cols = tuple(c.lower() for c in node.get("columns", {}))
             index[name] = ModelNode(
                 node_id=node_id,
                 name=name,
@@ -182,7 +178,4 @@ def find_downstream_batch(
         cache[nid] = frozen
         return frozen
 
-    return {
-        nid: sorted(_downstream(nid))
-        for nid in node_ids
-    }
+    return {nid: sorted(_downstream(nid)) for nid in node_ids}

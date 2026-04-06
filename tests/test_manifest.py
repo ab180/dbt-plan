@@ -318,9 +318,7 @@ class TestIncludePackages:
             },
         }
         index = build_node_index(manifest, include_packages=True)
-        assert sorted(index.keys()) == [
-            "dim_user", "fct_events", "stg_stripe", "surrogate_key"
-        ]
+        assert sorted(index.keys()) == ["dim_user", "fct_events", "stg_stripe", "surrogate_key"]
 
     def test_single_package_all_included_regardless(self):
         """With only one package, include_packages=False still includes all models."""

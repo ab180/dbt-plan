@@ -24,9 +24,12 @@ class TestExampleProject:
             [
                 "dbt-plan",
                 "check",
-                "--base-dir", str(example_project / "base"),
-                "--project-dir", str(example_project / "current"),
-                "--format", "text",
+                "--base-dir",
+                str(example_project / "base"),
+                "--project-dir",
+                str(example_project / "current"),
+                "--format",
+                "text",
             ],
         )
         with pytest.raises(SystemExit) as exc_info:
@@ -47,9 +50,12 @@ class TestExampleProject:
             [
                 "dbt-plan",
                 "check",
-                "--base-dir", str(example_project / "base"),
-                "--project-dir", str(example_project / "current"),
-                "--format", "text",
+                "--base-dir",
+                str(example_project / "base"),
+                "--project-dir",
+                str(example_project / "current"),
+                "--format",
+                "text",
             ],
         )
         with pytest.raises(SystemExit):
@@ -66,9 +72,12 @@ class TestExampleProject:
             [
                 "dbt-plan",
                 "check",
-                "--base-dir", str(example_project / "base"),
-                "--project-dir", str(example_project / "current"),
-                "--format", "text",
+                "--base-dir",
+                str(example_project / "base"),
+                "--project-dir",
+                str(example_project / "current"),
+                "--format",
+                "text",
             ],
         )
         with pytest.raises(SystemExit):
@@ -86,9 +95,12 @@ class TestExampleProject:
             [
                 "dbt-plan",
                 "check",
-                "--base-dir", str(example_project / "base"),
-                "--project-dir", str(example_project / "current"),
-                "--format", "text",
+                "--base-dir",
+                str(example_project / "base"),
+                "--project-dir",
+                str(example_project / "current"),
+                "--format",
+                "text",
             ],
         )
         with pytest.raises(SystemExit):
@@ -104,9 +116,12 @@ class TestExampleProject:
             [
                 "dbt-plan",
                 "check",
-                "--base-dir", str(example_project / "base"),
-                "--project-dir", str(example_project / "current"),
-                "--format", "text",
+                "--base-dir",
+                str(example_project / "base"),
+                "--project-dir",
+                str(example_project / "current"),
+                "--format",
+                "text",
             ],
         )
         with pytest.raises(SystemExit):
@@ -124,9 +139,12 @@ class TestExampleProject:
             [
                 "dbt-plan",
                 "check",
-                "--base-dir", str(example_project / "base"),
-                "--project-dir", str(example_project / "current"),
-                "--format", "github",
+                "--base-dir",
+                str(example_project / "base"),
+                "--project-dir",
+                str(example_project / "current"),
+                "--format",
+                "github",
             ],
         )
         with pytest.raises(SystemExit):
@@ -144,9 +162,12 @@ class TestExampleProject:
             [
                 "dbt-plan",
                 "check",
-                "--base-dir", str(example_project / "base"),
-                "--project-dir", str(example_project / "current"),
-                "--format", "text",
+                "--base-dir",
+                str(example_project / "base"),
+                "--project-dir",
+                str(example_project / "current"),
+                "--format",
+                "text",
             ],
         )
         with pytest.raises(SystemExit):
