@@ -464,7 +464,7 @@ def _do_check(args: argparse.Namespace) -> int:
         stored_base, stored_curr = model_cols.get(pred.model_name, (None, None))
         cascade_removed = pred.columns_removed
         cascade_added = pred.columns_added
-        if not cascade_removed and not cascade_added and stored_base and stored_curr:
+        if not cascade_removed and not cascade_added and stored_base is not None and stored_curr is not None:
             if stored_base != ["*"] and stored_curr != ["*"]:
                 cascade_removed = sorted(set(stored_base) - set(stored_curr))
                 cascade_added = sorted(set(stored_curr) - set(stored_base))
