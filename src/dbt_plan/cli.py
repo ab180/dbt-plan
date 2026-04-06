@@ -375,6 +375,7 @@ def _do_check(args: argparse.Namespace) -> int:
     parse_failures: list[str] = []
     skipped_models: list[str] = []
     model_node_ids: dict[str, str] = {}  # model_name → node_id for batch downstream
+    model_cols: dict[str, tuple[list[str] | None, list[str] | None]] = {}  # for cascade
 
     for diff in model_diffs:
         # O(1) lookup via index instead of O(N) scan
@@ -437,6 +438,7 @@ def _do_check(args: argparse.Namespace) -> int:
         )
         predictions.append(prediction)
         model_node_ids[diff.model_name] = node.node_id
+        model_cols[diff.model_name] = (base_cols, current_cols)
 
     # 3b. Batch downstream computation (memoized, avoids redundant BFS)
     from dbt_plan.predictor import DownstreamImpact
@@ -456,9 +458,21 @@ def _do_check(args: argparse.Namespace) -> int:
         downstream_names = [nid.split(".")[-1] for nid in downstream_nids]
         downstream_map[pred.model_name] = downstream_names
 
-        # Only analyze cascade if there are dropped or added columns
-        if not pred.columns_removed and not pred.columns_added:
+        # Compute SQL-level column diff for cascade analysis
+        # (predictor doesn't populate columns_removed for table/view,
+        #  so we use the raw column extraction results)
+        stored_base, stored_curr = model_cols.get(pred.model_name, (None, None))
+        cascade_removed = pred.columns_removed
+        cascade_added = pred.columns_added
+        if not cascade_removed and not cascade_added and stored_base and stored_curr:
+            if stored_base != ["*"] and stored_curr != ["*"]:
+                cascade_removed = sorted(set(stored_base) - set(stored_curr))
+                cascade_added = sorted(set(stored_curr) - set(stored_base))
+
+        if not cascade_removed and not cascade_added:
             continue
+
+        import re
 
         impacts: list[DownstreamImpact] = []
         for ds_nid in downstream_nids:
@@ -471,12 +485,12 @@ def _do_check(args: argparse.Namespace) -> int:
             ds_mat = ds_node.materialization
             ds_osc = ds_node.on_schema_change or "ignore"
 
-            # table/view: full rebuild, always safe
+            # table/view/ephemeral: full rebuild, always safe
             if ds_mat in ("table", "view", "ephemeral"):
                 continue
 
-            # incremental + fail: any upstream schema change → build failure
-            if ds_osc == "fail" and (pred.columns_added or pred.columns_removed):
+            # Fix #2: only incremental + fail triggers build_failure
+            if ds_mat == "incremental" and ds_osc == "fail" and (cascade_added or cascade_removed):
                 impacts.append(
                     DownstreamImpact(
                         model_name=ds_node.name,
@@ -488,17 +502,20 @@ def _do_check(args: argparse.Namespace) -> int:
                 )
                 continue
 
-            # Check if downstream SQL references dropped columns
-            if pred.columns_removed:
-                # Find downstream's compiled SQL
+            # Fix #3: word-boundary matching instead of substring
+            if cascade_removed:
                 ds_sql = None
                 if current_compiled:
                     ds_files = list(current_compiled.rglob(f"{ds_node.name}.sql"))
                     if ds_files:
-                        ds_sql = ds_files[0].read_text().lower()
+                        ds_sql = ds_files[0].read_text()
 
                 if ds_sql:
-                    broken_refs = [col for col in pred.columns_removed if col.lower() in ds_sql]
+                    broken_refs = [
+                        col
+                        for col in cascade_removed
+                        if re.search(r"\b" + re.escape(col) + r"\b", ds_sql, re.IGNORECASE)
+                    ]
                     if broken_refs:
                         impacts.append(
                             DownstreamImpact(
@@ -511,12 +528,19 @@ def _do_check(args: argparse.Namespace) -> int:
                         )
 
         if impacts:
-            # Replace prediction with one that includes downstream impacts
+            # Fix #4: escalate safety based on cascade risk
+            cascade_safety = pred.safety
+            if any(imp.risk == "broken_ref" for imp in impacts):
+                cascade_safety = Safety.DESTRUCTIVE
+            elif any(imp.risk == "build_failure" for imp in impacts):
+                if cascade_safety == Safety.SAFE:
+                    cascade_safety = Safety.WARNING
+
             predictions[i] = DDLPrediction(
                 model_name=pred.model_name,
                 materialization=pred.materialization,
                 on_schema_change=pred.on_schema_change,
-                safety=pred.safety,
+                safety=cascade_safety,
                 operations=pred.operations,
                 columns_added=pred.columns_added,
                 columns_removed=pred.columns_removed,
