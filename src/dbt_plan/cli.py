@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -476,8 +477,6 @@ def _do_check(args: argparse.Namespace) -> int:
 
         if not cascade_removed and not cascade_added:
             continue
-
-        import re
 
         impacts: list[DownstreamImpact] = []
         for ds_nid in downstream_nids:
