@@ -62,7 +62,9 @@ class Config:
                 ]
             elif key == "warning_exit_code":
                 try:
-                    self.warning_exit_code = int(value)
+                    val = int(value)
+                    if 0 <= val <= 255:
+                        self.warning_exit_code = val
                 except ValueError:
                     pass
             elif key == "format":
@@ -95,6 +97,8 @@ class Config:
             self.ignore_models = [m.strip() for m in ignore.split(",") if m.strip()]
         if wec := os.environ.get("DBT_PLAN_WARNING_EXIT_CODE"):
             try:
-                self.warning_exit_code = int(wec)
+                val = int(wec)
+                if 0 <= val <= 255:
+                    self.warning_exit_code = val
             except ValueError:
                 pass

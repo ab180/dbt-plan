@@ -22,17 +22,19 @@ class ModelNode:
 def load_manifest(manifest_path: str | Path) -> dict:
     """Load and parse manifest.json, keeping only nodes and child_map.
 
-    Streams from file handle to avoid holding raw string + parsed dict
-    simultaneously. Discards unused sections (macros, sources, docs, etc.)
-    to reduce memory for large manifests (100MB+).
+    Parses the full JSON then extracts only the needed sections.
+    Discards unused sections (macros, sources, docs, etc.) to reduce
+    long-term memory usage for large manifests.
     """
     path = Path(manifest_path)
     with path.open("r") as f:
         full = json.load(f)
-    return {
+    result = {
         "nodes": full.get("nodes", {}),
         "child_map": full.get("child_map", {}),
     }
+    del full
+    return result
 
 
 def build_node_index(manifest: dict, *, include_packages: bool = False) -> dict[str, ModelNode]:
@@ -64,8 +66,11 @@ def build_node_index(manifest: dict, *, include_packages: bool = False) -> dict[
         if root_project and node_id.split(".")[1] != root_project:
             continue
         name = node.get("name")
+        config = node.get("config", {})
+        # Skip disabled models (dbt won't run them, no DDL will occur)
+        if config.get("enabled") is False:
+            continue
         if name and name not in index:
-            config = node.get("config", {})
             # Extract column names from manifest (used as fallback for SELECT *)
             manifest_cols = tuple(c.lower() for c in node.get("columns", {}))
             index[name] = ModelNode(

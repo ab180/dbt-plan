@@ -103,7 +103,11 @@ def _summary_line(result: CheckResult) -> str:
     safe = sum(1 for p in result.predictions if p.safety == Safety.SAFE)
     warn = sum(1 for p in result.predictions if p.safety == Safety.WARNING)
     dest = sum(1 for p in result.predictions if p.safety == Safety.DESTRUCTIVE)
-    return f"dbt-plan: {n} checked, {safe} safe, {warn} warning, {dest} destructive"
+    cascade = sum(len(p.downstream_impacts) for p in result.predictions)
+    line = f"dbt-plan: {n} checked, {safe} safe, {warn} warning, {dest} destructive"
+    if cascade:
+        line += f", {cascade} cascade risk(s)"
+    return line
 
 
 def format_github(result: CheckResult) -> str:
@@ -183,13 +187,18 @@ def format_json(result: CheckResult) -> str:
             ]
         models.append(model)
 
+    cascade_count = sum(len(p.downstream_impacts) for p in result.predictions)
+    summary: dict = {
+        "total": len(result.predictions),
+        "safe": sum(1 for p in result.predictions if p.safety == Safety.SAFE),
+        "warning": sum(1 for p in result.predictions if p.safety == Safety.WARNING),
+        "destructive": sum(1 for p in result.predictions if p.safety == Safety.DESTRUCTIVE),
+    }
+    if cascade_count:
+        summary["cascade_risks"] = cascade_count
+
     output = {
-        "summary": {
-            "total": len(result.predictions),
-            "safe": sum(1 for p in result.predictions if p.safety == Safety.SAFE),
-            "warning": sum(1 for p in result.predictions if p.safety == Safety.WARNING),
-            "destructive": sum(1 for p in result.predictions if p.safety == Safety.DESTRUCTIVE),
-        },
+        "summary": summary,
         "models": models,
         "parse_failures": result.parse_failures,
         "skipped_models": result.skipped_models,

@@ -1,27 +1,37 @@
 # dbt-plan
 
-Preview what DDL changes `dbt run` will execute — before you run it.
+Static analysis tool that warns about risky DDL changes before `dbt run`.
 
-Like `terraform plan` for dbt. Works with major warehouses supported by dbt (Snowflake, BigQuery, Redshift, Postgres, etc.).
+Like `terraform plan` for dbt. No warehouse connection needed. Works with any warehouse (Snowflake, BigQuery, Redshift, Postgres, etc.).
 
-## Goal
+## What It Does
 
-Catch destructive DDL changes (like `DROP COLUMN`) before they reach production. dbt's `incremental` + `sync_all_columns` can silently execute `ALTER TABLE` when SELECT columns change. dbt-plan detects this at PR time and blocks the merge.
+dbt-plan analyzes compiled SQL diffs to catch dangerous schema changes at PR time:
+
+- **Column changes**: detects ADD/DROP COLUMN from SQL diff
+- **Risk assessment**: judges safety based on materialization x on_schema_change rules
+- **Cascade analysis**: finds downstream models that reference dropped columns
+- **Config changes**: detects materialization or on_schema_change policy changes
+
+It does NOT execute anything, connect to any warehouse, or simulate `dbt run`. It reads files, compares them, and warns you.
 
 ## Quick Start
 
 ```bash
-pip install git+https://github.com/ab180/dbt-plan@v0.2.0
+pip install dbt-plan
 
 # In your dbt project directory:
+dbt-plan run               # One command: compile baseline → compile current → check
+```
+
+That's it. `dbt-plan run` handles `dbt compile`, snapshotting, and checking automatically.
+
+### More commands
+
+```bash
 dbt-plan init              # Generate .dbt-plan.yml config + update .gitignore
 dbt-plan stats             # Analyze project readiness
-
-dbt compile
-dbt-plan snapshot          # Save baseline (compiled SQL + manifest)
-# ... make model changes ...
-dbt compile
-dbt-plan check             # See what will change
+dbt-plan ci-setup          # Generate GitHub Actions workflow
 dbt-plan check --format github   # GitHub markdown output
 dbt-plan check --format json     # JSON for CI pipelines
 dbt-plan check --select model1   # Check specific model only
@@ -39,9 +49,12 @@ DESTRUCTIVE  int_unified (incremental, sync_all_columns)
   DROP COLUMN  data__user
   ADD COLUMN   data__device__uuid
   Downstream: dim_device, fct_events (2 model(s))
+  >> BROKEN_REF  fct_events: references dropped column(s): data__device
 
 SAFE  dim_device (table)
   CREATE OR REPLACE TABLE
+
+dbt-plan: 2 checked, 1 safe, 0 warning, 1 destructive, 1 cascade risk(s)
 ```
 
 ## What Works (v0.2.0)
@@ -51,6 +64,7 @@ SAFE  dim_device (table)
 | Column extraction (SQLGlot) | **Done** | Multi-dialect (Snowflake, BigQuery, Postgres, etc.) |
 | DDL prediction | **Done** | All materialization x on_schema_change combinations |
 | Downstream impact | **Done** | Memoized batch BFS, cycle protection |
+| Cascade impact analysis | **Done** | Broken column refs, build failures in downstream models |
 | Removed model detection | **Done** | Always DESTRUCTIVE (ephemeral = SAFE) |
 | Parse failure safety | **Done** | Never returns SAFE when columns unknown |
 | SELECT * fallback | **Done** | Manifest column definitions as fallback |
@@ -62,15 +76,27 @@ SAFE  dim_device (table)
 | CI integration | **Done** | Lint (ruff) + test + 90% coverage, CI workflow template |
 | Verbose mode | **Done** | `--verbose` / `-v` for debugging |
 
-## What Doesn't Work Yet
+## Scope
 
-| Feature | Phase | Why It Matters |
-|---------|-------|----------------|
-| INFORMATION_SCHEMA query | 2a | For SELECT * models without manifest column definitions |
-| `ddl-reviewed` label override | 2b | Escape hatch for intentional destructive changes |
-| Slack notifications | 2c | Alert on destructive DDL |
-| `dbt-plan run` wrapper | 2b | Interactive confirmation before `dbt run` |
-| Column type detection | 2c | `ALTER TYPE` predictions (only 5.2% of columns have type info) |
+dbt-plan is a **static analysis warning tool**, not a runtime simulator.
+
+| In scope | Out of scope |
+|----------|-------------|
+| Column ADD/DROP detection from compiled SQL | `dbt run` simulation |
+| materialization × on_schema_change risk rules | Warehouse connection |
+| Cascade broken ref / build failure analysis | `seed` / `source` change detection |
+| Config change detection (materialization, osc) | `pre_hook` / `post_hook` DDL analysis |
+| CI exit codes + structured output | `full_refresh` mode judgment |
+
+**Design principle**: false warnings are OK, false safe is never OK.
+
+## Future Improvements
+
+| Feature | Why It Matters |
+|---------|----------------|
+| `ddl-reviewed` label override | Escape hatch for intentional destructive changes |
+| INFORMATION_SCHEMA query | For SELECT * models without manifest column definitions |
+| Column type detection | `ALTER TYPE` predictions |
 
 ## DDL Prediction Rules
 
@@ -100,7 +126,7 @@ jobs:
         with: { fetch-depth: 0 }
 
       - run: pip install uv && uv sync
-      - run: pip install git+https://github.com/ab180/dbt-plan@v0.1.0
+      - run: pip install dbt-plan  # or: pip install git+https://github.com/ab180/dbt-plan@v0.2.0
 
       # Compile and snapshot base branch
       - run: |
@@ -161,22 +187,21 @@ src/dbt_plan/
 ### How to Contribute
 
 **Good first issues:**
-- Add more compiled SQL fixtures in `tests/fixtures/` for edge cases
+- Add compiled SQL fixtures in `tests/fixtures/` for edge cases (UNION, subqueries, etc.)
 - Improve error messages for common mistakes
-- Add `--verbose` flag for debugging
 
 **Medium issues:**
-- INFORMATION_SCHEMA integration (Phase 1b) — query warehouse for actual columns
-- CI workflow template — reusable GitHub Actions for dbt projects
-- PR comment posting with `<!-- dbt-plan -->` marker
+- `ddl-reviewed` label override — escape hatch for intentional destructive changes
+- INFORMATION_SCHEMA integration — query warehouse for SELECT * resolution
 
-**Design decisions:** See [docs/architecture-decisions.md](docs/architecture-decisions.md) and [docs/design-spec.md](docs/design-spec.md).
+**Design decisions:** See [docs/architecture-decisions.md](docs/architecture-decisions.md).
 
 ## Supported
 
-- dbt-core 1.7+ with dbt-snowflake
+- dbt-core 1.7+
+- Any warehouse: Snowflake, BigQuery, Redshift, Postgres, DuckDB, etc. (`--dialect`)
 - Python 3.10+
-- Snowflake VARIANT (`col:path::TYPE`), CTE, QUALIFY, window functions
+- CTE, UNION ALL, QUALIFY, window functions, VARIANT access
 
 ## License
 

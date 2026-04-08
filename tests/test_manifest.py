@@ -197,6 +197,38 @@ class TestBuildNodeIndex:
         assert index["m"].on_schema_change is None
 
 
+    def test_skips_disabled_models(self):
+        """build_node_index excludes models with enabled: false."""
+        manifest = {
+            "nodes": {
+                "model.p.active": {
+                    "name": "active",
+                    "config": {"materialized": "table"},
+                },
+                "model.p.disabled": {
+                    "name": "disabled",
+                    "config": {"materialized": "table", "enabled": False},
+                },
+            },
+        }
+        index = build_node_index(manifest)
+        assert "active" in index
+        assert "disabled" not in index
+
+    def test_includes_models_without_enabled_key(self):
+        """Models without explicit 'enabled' key are included (default enabled)."""
+        manifest = {
+            "nodes": {
+                "model.p.m": {
+                    "name": "m",
+                    "config": {"materialized": "view"},
+                },
+            },
+        }
+        index = build_node_index(manifest)
+        assert "m" in index
+
+
 class TestFindDownstreamBatch:
     def test_batch_matches_individual_calls(self):
         """Batch results match individual find_downstream calls."""

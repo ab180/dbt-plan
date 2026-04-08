@@ -1,7 +1,7 @@
 [project]
 name = "dbt-plan"
 version = "0.2.0"
-description = "Preview what DDL changes dbt run will execute — like terraform plan for dbt"
+description = "Static analysis tool that warns about risky DDL changes before dbt run"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"

@@ -155,6 +155,57 @@ class TestExampleProject:
         assert "**DESTRUCTIVE**" in output
         assert "`int_unified`" in output
 
+    def test_cascade_broken_ref(self, example_project, monkeypatch, capsys):
+        """fct_daily_metrics references dropped column data__device → BROKEN_REF cascade."""
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "dbt-plan",
+                "check",
+                "--base-dir",
+                str(example_project / "base"),
+                "--project-dir",
+                str(example_project / "current"),
+                "--format",
+                "text",
+            ],
+        )
+        with pytest.raises(SystemExit):
+            main()
+
+        output = capsys.readouterr().out
+        assert "BROKEN_REF" in output
+        assert "fct_daily_metrics" in output
+        assert "data__device" in output
+        assert "cascade risk" in output
+
+    def test_cascade_in_json(self, example_project, monkeypatch, capsys):
+        """JSON output includes downstream_impacts with cascade risks."""
+        import json
+
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "dbt-plan",
+                "check",
+                "--base-dir",
+                str(example_project / "base"),
+                "--project-dir",
+                str(example_project / "current"),
+                "--format",
+                "json",
+            ],
+        )
+        with pytest.raises(SystemExit):
+            main()
+
+        output = capsys.readouterr().out
+        data = json.loads(output)
+        assert data["summary"]["cascade_risks"] == 1
+        int_unified = next(m for m in data["models"] if m["model_name"] == "int_unified")
+        assert "downstream_impacts" in int_unified
+        assert int_unified["downstream_impacts"][0]["risk"] == "broken_ref"
+
     def test_model_count(self, example_project, monkeypatch, capsys):
         """4 models changed."""
         monkeypatch.setattr(

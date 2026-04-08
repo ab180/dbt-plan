@@ -11,8 +11,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Cascade impact analysis**: detect downstream broken column references and build failures
   - `BROKEN_REF`: downstream SQL references a dropped column (word-boundary matching)
   - `BUILD_FAILURE`: downstream incremental with `on_schema_change=fail`
+  - Table/view downstream models checked for broken column refs (SQL will fail even though DDL is safe)
+  - Removed models trigger cascade analysis (all base columns treated as removed)
+  - `incremental+ignore` correctly skips cascade (no physical schema change)
   - Safety escalation: cascade risks affect exit code (broken_ref → DESTRUCTIVE)
+  - Cascade risk count in summary line and JSON output
   - Shown in all output formats (text, github, json)
+- **Config change detection**: detect materialization and `on_schema_change` policy changes
+  - `MATERIALIZATION CHANGED: table -> incremental` shown as WARNING
+  - `on_schema_change CHANGED: ignore -> sync_all_columns` shown as WARNING
+  - Helps catch dangerous policy transitions (e.g., accumulated schema drift)
+- **`dbt-plan run`**: one-command check (compile baseline → compile current → check)
+  - Stashes uncommitted changes, compiles baseline, restores, compiles current, runs check
+  - Requires dbt to be installed (convenience wrapper, not a core dependency)
+- **`dbt-plan ci-setup`**: generates GitHub Actions workflow for dbt-plan CI
+  - Creates `.github/workflows/dbt-plan.yml` with snapshot → check → gate pipeline
+
+### Fixed
+- **Exit code for WARNING predictions**: `BUILD FAILURE`, `STALE COLUMNS`, and other WARNING-level predictions now correctly return `warning_exit_code` (default 2) instead of 0
+- **Disabled models excluded**: models with `enabled: false` are no longer indexed, preventing false `MODEL REMOVED` warnings
+- Exit code bounds validation: `warning_exit_code` now requires 0-255 range
+- Graceful handling of unreadable downstream SQL files during cascade analysis
+- Misleading manifest.py docstring about streaming (was actually full parse)
 
 ## [0.2.0] - 2026-04-06
 

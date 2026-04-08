@@ -58,10 +58,15 @@ def diff_compiled_dirs(
         current_path = current_models.get(name)
 
         if base_path and current_path:
-            # Fast path: different file sizes → definitely modified (skip content read)
+            # Fast path: different file sizes → definitely modified
             definitely_different = base_path.stat().st_size != current_path.stat().st_size
             if definitely_different:
-                diffs.append(ModelDiff(name, "modified", base_path, current_path))
+                # Read content eagerly so callers don't re-read
+                base_text = base_path.read_text()
+                current_text = current_path.read_text()
+                diffs.append(
+                    ModelDiff(name, "modified", base_path, current_path, base_text, current_text)
+                )
             else:
                 # Same size: must compare content
                 base_text = base_path.read_text()
