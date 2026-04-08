@@ -276,7 +276,10 @@ def analyze_cascade_impacts(
 
         # Skip cascade for incremental+ignore: no physical schema change occurs,
         # so downstream models are not affected by column changes in the SQL
-        if pred.materialization == "incremental" and (pred.on_schema_change or "ignore") == "ignore":
+        if (
+            pred.materialization == "incremental"
+            and (pred.on_schema_change or "ignore") == "ignore"
+        ):
             continue
 
         # Compute SQL-level column diff for cascade analysis
@@ -303,10 +306,14 @@ def analyze_cascade_impacts(
             continue
 
         # Pre-compile regex patterns for column matching (avoid per-iteration compile)
-        col_patterns = {
-            col: re.compile(r"\b" + re.escape(col) + r"\b", re.IGNORECASE)
-            for col in cascade_removed
-        } if cascade_removed else {}
+        col_patterns = (
+            {
+                col: re.compile(r"\b" + re.escape(col) + r"\b", re.IGNORECASE)
+                for col in cascade_removed
+            }
+            if cascade_removed
+            else {}
+        )
 
         impacts: list[DownstreamImpact] = []
         for ds_nid in downstream_nids:
@@ -351,9 +358,7 @@ def analyze_cascade_impacts(
 
                 if ds_sql:
                     broken_refs = [
-                        col
-                        for col, pattern in col_patterns.items()
-                        if pattern.search(ds_sql)
+                        col for col, pattern in col_patterns.items() if pattern.search(ds_sql)
                     ]
                     if broken_refs:
                         impacts.append(
@@ -375,8 +380,6 @@ def analyze_cascade_impacts(
                 if cascade_safety == Safety.SAFE:
                     cascade_safety = Safety.WARNING
 
-            updated[i] = replace(
-                pred, safety=cascade_safety, downstream_impacts=impacts
-            )
+            updated[i] = replace(pred, safety=cascade_safety, downstream_impacts=impacts)
 
     return updated, downstream_map

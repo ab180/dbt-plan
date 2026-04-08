@@ -196,7 +196,6 @@ class TestBuildNodeIndex:
         assert index["m"].materialization == "table"
         assert index["m"].on_schema_change is None
 
-
     def test_skips_disabled_models(self):
         """build_node_index excludes models with enabled: false."""
         manifest = {

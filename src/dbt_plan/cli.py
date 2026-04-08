@@ -460,10 +460,12 @@ def _do_check(args: argparse.Namespace) -> int:
             config_safety = prediction.safety
 
             if base_node.materialization != node.materialization:
-                extra_ops.append(DDLOperation(
-                    f"MATERIALIZATION CHANGED: "
-                    f"{base_node.materialization} -> {node.materialization}"
-                ))
+                extra_ops.append(
+                    DDLOperation(
+                        f"MATERIALIZATION CHANGED: "
+                        f"{base_node.materialization} -> {node.materialization}"
+                    )
+                )
                 config_safety = Safety.WARNING
                 _log(
                     f"  Config change: materialization "
@@ -473,9 +475,9 @@ def _do_check(args: argparse.Namespace) -> int:
             base_osc = base_node.on_schema_change or "ignore"
             curr_osc = node.on_schema_change or "ignore"
             if base_osc != curr_osc:
-                extra_ops.append(DDLOperation(
-                    f"on_schema_change CHANGED: {base_osc} -> {curr_osc}"
-                ))
+                extra_ops.append(
+                    DDLOperation(f"on_schema_change CHANGED: {base_osc} -> {curr_osc}")
+                )
                 # ignore -> sync_all_columns is especially dangerous
                 if curr_osc == "sync_all_columns" and base_osc == "ignore":
                     config_safety = Safety.WARNING
@@ -484,7 +486,11 @@ def _do_check(args: argparse.Namespace) -> int:
             if extra_ops:
                 # Use the higher severity between config change and DDL prediction
                 _severity = {Safety.SAFE: 0, Safety.WARNING: 1, Safety.DESTRUCTIVE: 2}
-                final_safety = config_safety if _severity[config_safety] > _severity[prediction.safety] else prediction.safety
+                final_safety = (
+                    config_safety
+                    if _severity[config_safety] > _severity[prediction.safety]
+                    else prediction.safety
+                )
                 prediction = _replace(
                     prediction,
                     operations=extra_ops + list(prediction.operations),
@@ -632,7 +638,9 @@ def _do_run(args: argparse.Namespace) -> int:
     # 1. Check for uncommitted changes
     git_status = subprocess.run(
         ["git", "status", "--porcelain"],
-        capture_output=True, text=True, cwd=str(project_dir),
+        capture_output=True,
+        text=True,
+        cwd=str(project_dir),
     )
     has_changes = bool(git_status.stdout.strip())
 
@@ -641,13 +649,17 @@ def _do_run(args: argparse.Namespace) -> int:
         _log("Stashing uncommitted changes...")
         subprocess.run(
             ["git", "stash", "push", "-m", "dbt-plan-run-temp", "--include-untracked"],
-            capture_output=True, cwd=str(project_dir),
+            capture_output=True,
+            cwd=str(project_dir),
         )
 
     # 3. Compile baseline + snapshot
     _log("Compiling baseline (current branch HEAD)...")
     compile_base = subprocess.run(
-        ["dbt", "compile"], capture_output=True, text=True, cwd=str(project_dir),
+        ["dbt", "compile"],
+        capture_output=True,
+        text=True,
+        cwd=str(project_dir),
     )
     if compile_base.returncode != 0:
         print(f"Error: dbt compile failed for baseline:\n{compile_base.stderr}", file=sys.stderr)
@@ -670,7 +682,10 @@ def _do_run(args: argparse.Namespace) -> int:
     # 5. Compile current state
     _log("Compiling current state...")
     compile_curr = subprocess.run(
-        ["dbt", "compile"], capture_output=True, text=True, cwd=str(project_dir),
+        ["dbt", "compile"],
+        capture_output=True,
+        text=True,
+        cwd=str(project_dir),
     )
     if compile_curr.returncode != 0:
         print(f"Error: dbt compile failed for current:\n{compile_curr.stderr}", file=sys.stderr)
@@ -730,7 +745,9 @@ def main() -> None:
     )
 
     # check
-    check = subparsers.add_parser("check", help="Analyze compiled SQL changes and warn about risks")
+    check = subparsers.add_parser(
+        "check", help="Analyze compiled SQL changes and warn about risks"
+    )
     check.add_argument("--project-dir", default=".", help="dbt project directory (default: .)")
     check.add_argument(
         "--target-dir", default="target", help="dbt target directory (default: target)"
@@ -818,19 +835,27 @@ def main() -> None:
         help="Output format (default: text)",
     )
     run_cmd.add_argument(
-        "--no-color", action="store_true", default=False,
+        "--no-color",
+        action="store_true",
+        default=False,
         help="Disable colored output",
     )
     run_cmd.add_argument(
-        "-s", "--select", default=None,
+        "-s",
+        "--select",
+        default=None,
         help="Only check specific models (comma-separated)",
     )
     run_cmd.add_argument(
-        "-v", "--verbose", action="store_true", default=False,
+        "-v",
+        "--verbose",
+        action="store_true",
+        default=False,
         help="Show detailed processing info",
     )
     run_cmd.add_argument(
-        "--dialect", default=None,
+        "--dialect",
+        default=None,
         help="SQL dialect for parsing (default: snowflake)",
     )
 

@@ -110,7 +110,6 @@ class TestSnapshotPathValidation:
         assert "Warning: manifest.json not found" in captured.err
         assert "Snapshot saved to" in captured.out
 
-
     def test_snapshot_happy_path(self, tmp_path, capsys):
         """Snapshot copies compiled SQL + manifest to .dbt-plan/base/."""
         project_dir = tmp_path / "project"
@@ -489,7 +488,10 @@ class TestConfigChangeDetection:
             "nodes": {
                 "model.p.m": {
                     "name": "m",
-                    "config": {"materialized": "incremental", "on_schema_change": "sync_all_columns"},
+                    "config": {
+                        "materialized": "incremental",
+                        "on_schema_change": "sync_all_columns",
+                    },
                 },
             },
             "child_map": {},
@@ -899,12 +901,16 @@ class TestStats:
         project_dir.mkdir()
         target = project_dir / "target"
         target.mkdir()
-        (target / "manifest.json").write_text(json.dumps({
-            "nodes": {
-                "model.p.m": {"name": "m", "config": {"materialized": "view"}},
-            },
-            "child_map": {},
-        }))
+        (target / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "nodes": {
+                        "model.p.m": {"name": "m", "config": {"materialized": "view"}},
+                    },
+                    "child_map": {},
+                }
+            )
+        )
         from dbt_plan.cli import _do_stats
 
         _do_stats(self._make_stats_args(project_dir))

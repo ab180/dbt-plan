@@ -470,9 +470,7 @@ class TestAnalyzeCascadeImpacts:
             predictions=[pred],
             model_node_ids={"int_unified": "model.test.int_unified"},
             model_cols={"int_unified": (["a", "b"], ["a"])},
-            all_downstream={
-                "model.test.int_unified": ["model.test.eph_safe"]
-            },
+            all_downstream={"model.test.int_unified": ["model.test.eph_safe"]},
             node_index=node_index,
             base_node_index={},
             compiled_sql_index={},
