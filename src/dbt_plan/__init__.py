@@ -1,3 +1,13 @@
-"""dbt-plan: Preview what DDL changes dbt run will execute."""
+"""dbt-plan: Static analysis tool that warns about risky DDL changes before dbt run."""
 
 __version__ = "0.2.0"
+
+__all__ = [
+    "__version__",
+    "columns",
+    "config",
+    "diff",
+    "formatter",
+    "manifest",
+    "predictor",
+]

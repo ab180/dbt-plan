@@ -65,6 +65,18 @@ class TestConfigFile:
         config = Config.load(tmp_path)
         assert config.dialect == "snowflake"
 
+    def test_format_config_value(self, tmp_path):
+        """Config format value is loaded correctly."""
+        (tmp_path / ".dbt-plan.yml").write_text("format: github\n")
+        config = Config.load(tmp_path)
+        assert config.format == "github"
+
+    def test_invalid_format_markdown_ignored(self, tmp_path):
+        """Invalid format 'markdown' uses default text."""
+        (tmp_path / ".dbt-plan.yml").write_text("format: markdown\n")
+        config = Config.load(tmp_path)
+        assert config.format == "text"
+
 
 class TestEnvVars:
     def test_env_overrides_format(self, tmp_path, monkeypatch):
@@ -104,3 +116,21 @@ class TestEnvVars:
         monkeypatch.setenv("DBT_PLAN_WARNING_EXIT_CODE", "0")
         config = Config.load(tmp_path)
         assert config.warning_exit_code == 0
+
+    def test_warning_exit_code_rejects_negative(self, tmp_path):
+        """Negative warning_exit_code is rejected (shell incompatible)."""
+        (tmp_path / ".dbt-plan.yml").write_text("warning_exit_code: -1\n")
+        config = Config.load(tmp_path)
+        assert config.warning_exit_code == 2  # default
+
+    def test_warning_exit_code_rejects_over_255(self, tmp_path):
+        """Exit code > 255 is rejected (shell truncates to 8 bits)."""
+        (tmp_path / ".dbt-plan.yml").write_text("warning_exit_code: 999\n")
+        config = Config.load(tmp_path)
+        assert config.warning_exit_code == 2  # default
+
+    def test_env_warning_exit_code_rejects_negative(self, tmp_path, monkeypatch):
+        """Env var with negative exit code is rejected."""
+        monkeypatch.setenv("DBT_PLAN_WARNING_EXIT_CODE", "-5")
+        config = Config.load(tmp_path)
+        assert config.warning_exit_code == 2  # default

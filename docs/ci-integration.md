@@ -38,7 +38,7 @@ jobs:
         run: |
           pip install uv
           uv sync --group dbt
-          pip install git+https://github.com/ab180/dbt-plan@v0.1.0
+          pip install git+https://github.com/ab180/dbt-plan@v0.2.0
 
       # Base branch: compile + snapshot
       - name: Compile base
@@ -111,7 +111,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - run: pip install git+https://github.com/ab180/dbt-plan@v0.1.0
+      - run: pip install git+https://github.com/ab180/dbt-plan@v0.2.0
       - run: |
           git checkout ${{ github.event.pull_request.base.sha }}
           dbt compile && dbt-plan snapshot

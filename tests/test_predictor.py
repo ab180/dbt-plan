@@ -42,6 +42,17 @@ class TestIncrementalIgnoreAndFail:
         assert result.safety == Safety.SAFE
         assert any(op.operation == "NO DDL" for op in result.operations)
 
+    def test_incremental_fail_same_columns_safe(self):
+        """incremental + fail + same columns → SAFE (no schema change)."""
+        result = predict_ddl(
+            model_name="fct_strict",
+            materialization="incremental",
+            on_schema_change="fail",
+            base_columns=["a", "b"],
+            current_columns=["a", "b"],
+        )
+        assert result.safety == Safety.SAFE
+
     def test_incremental_fail_warning(self):
         """incremental + fail + columns changed → WARNING, BUILD FAILURE."""
         result = predict_ddl(
@@ -86,6 +97,19 @@ class TestIncrementalAppendAndSync:
         assert result.columns_added == ["d"]
         drop_ops = [op for op in result.operations if op.operation == "DROP COLUMN"]
         assert len(drop_ops) == 2
+
+    def test_unknown_on_schema_change_shows_operation(self):
+        """Unknown on_schema_change → WARNING with descriptive operation."""
+        result = predict_ddl(
+            model_name="m",
+            materialization="incremental",
+            on_schema_change="custom_future_value",
+            base_columns=["a"],
+            current_columns=["a"],
+        )
+        assert result.safety == Safety.WARNING
+        assert any("UNKNOWN" in op.operation for op in result.operations)
+        assert any("custom_future_value" in op.operation for op in result.operations)
 
     def test_sync_safe_when_no_changes(self):
         """incremental + sync_all_columns + same columns → SAFE, no ops."""
@@ -297,3 +321,501 @@ class TestAppendStaleColumns:
         assert result.safety == Safety.SAFE
         assert result.columns_added == ["c"]
         assert result.columns_removed == []
+
+
+class TestDownstreamImpact:
+    def test_downstream_impact_dataclass(self):
+        """DownstreamImpact stores risk and reason."""
+        from dbt_plan.predictor import DownstreamImpact
+
+        impact = DownstreamImpact(
+            model_name="fct_metrics",
+            materialization="incremental",
+            on_schema_change="fail",
+            risk="build_failure",
+            reason="upstream schema changed",
+        )
+        assert impact.risk == "build_failure"
+        assert impact.model_name == "fct_metrics"
+
+    def test_prediction_with_downstream_impacts(self):
+        """DDLPrediction can hold downstream_impacts."""
+        from dbt_plan.predictor import DDLOperation, DDLPrediction, DownstreamImpact
+
+        impact = DownstreamImpact(
+            model_name="fct_metrics",
+            materialization="incremental",
+            on_schema_change="fail",
+            risk="broken_ref",
+            reason="references dropped column(s): old_col",
+        )
+        pred = DDLPrediction(
+            model_name="int_unified",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            safety=Safety.DESTRUCTIVE,
+            operations=[DDLOperation("DROP COLUMN", "old_col")],
+            columns_removed=["old_col"],
+            downstream_impacts=[impact],
+        )
+        assert len(pred.downstream_impacts) == 1
+        assert pred.downstream_impacts[0].risk == "broken_ref"
+
+    def test_default_empty_downstream_impacts(self):
+        """DDLPrediction defaults to empty downstream_impacts."""
+        pred = predict_ddl(
+            model_name="m",
+            materialization="table",
+            on_schema_change=None,
+            base_columns=["a"],
+            current_columns=["a", "b"],
+        )
+        assert pred.downstream_impacts == []
+
+
+class TestAnalyzeCascadeImpacts:
+    """Tests for analyze_cascade_impacts extracted function."""
+
+    def _make_node(self, name, materialization="incremental", on_schema_change="ignore"):
+        from dbt_plan.manifest import ModelNode
+
+        return ModelNode(
+            node_id=f"model.test.{name}",
+            name=name,
+            materialization=materialization,
+            on_schema_change=on_schema_change,
+        )
+
+    def test_broken_ref_detected(self, tmp_path):
+        """Downstream SQL referencing a dropped column → broken_ref."""
+        from dbt_plan.predictor import analyze_cascade_impacts
+
+        # Write downstream SQL that references the dropped column
+        ds_sql = tmp_path / "fct_metrics.sql"
+        ds_sql.write_text("SELECT user_id, data__device FROM {{ ref('int_unified') }}")
+
+        pred = predict_ddl(
+            model_name="int_unified",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            base_columns=["user_id", "data__device"],
+            current_columns=["user_id"],
+        )
+
+        node_index = {
+            "fct_metrics": self._make_node("fct_metrics", "incremental", "ignore"),
+        }
+
+        updated, downstream_map = analyze_cascade_impacts(
+            predictions=[pred],
+            model_node_ids={"int_unified": "model.test.int_unified"},
+            model_cols={"int_unified": (["user_id", "data__device"], ["user_id"])},
+            all_downstream={"model.test.int_unified": ["model.test.fct_metrics"]},
+            node_index=node_index,
+            base_node_index={},
+            compiled_sql_index={"fct_metrics": ds_sql},
+        )
+
+        assert len(updated[0].downstream_impacts) == 1
+        assert updated[0].downstream_impacts[0].risk == "broken_ref"
+        assert updated[0].safety == Safety.DESTRUCTIVE
+        assert "int_unified" in downstream_map
+        assert "fct_metrics" in downstream_map["int_unified"]
+
+    def test_build_failure_for_incremental_fail(self, tmp_path):
+        """Downstream incremental+fail → build_failure on any schema change."""
+        from dbt_plan.predictor import analyze_cascade_impacts
+
+        pred = predict_ddl(
+            model_name="int_unified",
+            materialization="table",
+            on_schema_change=None,
+            base_columns=["a", "b"],
+            current_columns=["a", "b", "c"],
+        )
+
+        node_index = {
+            "fct_daily": self._make_node("fct_daily", "incremental", "fail"),
+        }
+
+        updated, _ = analyze_cascade_impacts(
+            predictions=[pred],
+            model_node_ids={"int_unified": "model.test.int_unified"},
+            model_cols={"int_unified": (["a", "b"], ["a", "b", "c"])},
+            all_downstream={"model.test.int_unified": ["model.test.fct_daily"]},
+            node_index=node_index,
+            base_node_index={},
+            compiled_sql_index={},
+        )
+
+        assert any(imp.risk == "build_failure" for imp in updated[0].downstream_impacts)
+
+    def test_ephemeral_skipped(self):
+        """Ephemeral downstream → no cascade impact (CTE, no physical table)."""
+        from dbt_plan.predictor import analyze_cascade_impacts
+
+        pred = predict_ddl(
+            model_name="int_unified",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            base_columns=["a", "b"],
+            current_columns=["a"],
+        )
+
+        node_index = {
+            "eph_safe": self._make_node("eph_safe", "ephemeral"),
+        }
+
+        updated, _ = analyze_cascade_impacts(
+            predictions=[pred],
+            model_node_ids={"int_unified": "model.test.int_unified"},
+            model_cols={"int_unified": (["a", "b"], ["a"])},
+            all_downstream={"model.test.int_unified": ["model.test.eph_safe"]},
+            node_index=node_index,
+            base_node_index={},
+            compiled_sql_index={},
+        )
+
+        assert updated[0].downstream_impacts == []
+
+    def test_table_view_broken_ref_detected(self, tmp_path):
+        """Table/view downstream with broken column ref → detected.
+
+        Even though table/view DDL is safe (CREATE OR REPLACE),
+        the SELECT will fail if it references a dropped upstream column.
+        """
+        from dbt_plan.predictor import analyze_cascade_impacts
+
+        ds_sql = tmp_path / "dim_device.sql"
+        ds_sql.write_text("SELECT user_id, dropped_col FROM {{ ref('parent') }}")
+
+        pred = predict_ddl(
+            model_name="parent",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            base_columns=["user_id", "dropped_col"],
+            current_columns=["user_id"],
+        )
+
+        node_index = {
+            "dim_device": self._make_node("dim_device", "table"),
+        }
+
+        updated, _ = analyze_cascade_impacts(
+            predictions=[pred],
+            model_node_ids={"parent": "model.test.parent"},
+            model_cols={"parent": (["user_id", "dropped_col"], ["user_id"])},
+            all_downstream={"model.test.parent": ["model.test.dim_device"]},
+            node_index=node_index,
+            base_node_index={},
+            compiled_sql_index={"dim_device": ds_sql},
+        )
+
+        assert len(updated[0].downstream_impacts) == 1
+        assert updated[0].downstream_impacts[0].risk == "broken_ref"
+        assert updated[0].downstream_impacts[0].model_name == "dim_device"
+
+    def test_table_view_no_broken_ref_when_safe(self, tmp_path):
+        """Table/view downstream without broken ref → no cascade impact."""
+        from dbt_plan.predictor import analyze_cascade_impacts
+
+        ds_sql = tmp_path / "dim_device.sql"
+        ds_sql.write_text("SELECT user_id FROM {{ ref('parent') }}")
+
+        pred = predict_ddl(
+            model_name="parent",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            base_columns=["user_id", "dropped_col"],
+            current_columns=["user_id"],
+        )
+
+        node_index = {
+            "dim_device": self._make_node("dim_device", "table"),
+        }
+
+        updated, _ = analyze_cascade_impacts(
+            predictions=[pred],
+            model_node_ids={"parent": "model.test.parent"},
+            model_cols={"parent": (["user_id", "dropped_col"], ["user_id"])},
+            all_downstream={"model.test.parent": ["model.test.dim_device"]},
+            node_index=node_index,
+            base_node_index={},
+            compiled_sql_index={"dim_device": ds_sql},
+        )
+
+        assert updated[0].downstream_impacts == []
+
+    def test_no_cascade_when_no_column_changes(self):
+        """Same columns before and after → no cascade."""
+        from dbt_plan.predictor import analyze_cascade_impacts
+
+        pred = predict_ddl(
+            model_name="int_unified",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            base_columns=["a", "b"],
+            current_columns=["a", "b"],
+        )
+
+        node_index = {
+            "fct": self._make_node("fct", "incremental", "fail"),
+        }
+
+        updated, _ = analyze_cascade_impacts(
+            predictions=[pred],
+            model_node_ids={"int_unified": "model.test.int_unified"},
+            model_cols={"int_unified": (["a", "b"], ["a", "b"])},
+            all_downstream={"model.test.int_unified": ["model.test.fct"]},
+            node_index=node_index,
+            base_node_index={},
+            compiled_sql_index={},
+        )
+
+        assert updated[0].downstream_impacts == []
+
+    def test_safety_escalation_safe_to_warning_for_build_failure(self):
+        """SAFE prediction with build_failure downstream → WARNING."""
+        from dbt_plan.predictor import analyze_cascade_impacts
+
+        pred = predict_ddl(
+            model_name="int_unified",
+            materialization="table",
+            on_schema_change=None,
+            base_columns=["a"],
+            current_columns=["a", "b"],
+        )
+        assert pred.safety == Safety.SAFE
+
+        node_index = {
+            "fct": self._make_node("fct", "incremental", "fail"),
+        }
+
+        updated, _ = analyze_cascade_impacts(
+            predictions=[pred],
+            model_node_ids={"int_unified": "model.test.int_unified"},
+            model_cols={"int_unified": (["a"], ["a", "b"])},
+            all_downstream={"model.test.int_unified": ["model.test.fct"]},
+            node_index=node_index,
+            base_node_index={},
+            compiled_sql_index={},
+        )
+
+        assert updated[0].safety == Safety.WARNING
+
+    def test_build_failure_does_not_downgrade_destructive(self):
+        """DESTRUCTIVE prediction stays DESTRUCTIVE even with only build_failure downstream."""
+        from dbt_plan.predictor import analyze_cascade_impacts
+
+        pred = predict_ddl(
+            model_name="int_unified",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            base_columns=["a", "b"],
+            current_columns=["a"],
+        )
+        assert pred.safety == Safety.DESTRUCTIVE
+
+        node_index = {
+            "fct": self._make_node("fct", "incremental", "fail"),
+        }
+
+        updated, _ = analyze_cascade_impacts(
+            predictions=[pred],
+            model_node_ids={"int_unified": "model.test.int_unified"},
+            model_cols={"int_unified": (["a", "b"], ["a"])},
+            all_downstream={"model.test.int_unified": ["model.test.fct"]},
+            node_index=node_index,
+            base_node_index={},
+            compiled_sql_index={},
+        )
+
+        assert updated[0].safety == Safety.DESTRUCTIVE
+
+    def test_incremental_fail_also_checks_broken_ref(self, tmp_path):
+        """incremental+fail downstream should detect broken_ref too (not just build_failure)."""
+        from dbt_plan.predictor import analyze_cascade_impacts
+
+        ds_sql = tmp_path / "fct.sql"
+        ds_sql.write_text("SELECT dropped_col FROM {{ ref('parent') }}")
+
+        pred = predict_ddl(
+            model_name="parent",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            base_columns=["dropped_col", "kept_col"],
+            current_columns=["kept_col"],
+        )
+
+        node_index = {
+            "fct": self._make_node("fct", "incremental", "fail"),
+        }
+
+        updated, _ = analyze_cascade_impacts(
+            predictions=[pred],
+            model_node_ids={"parent": "model.test.parent"},
+            model_cols={"parent": (["dropped_col", "kept_col"], ["kept_col"])},
+            all_downstream={"model.test.parent": ["model.test.fct"]},
+            node_index=node_index,
+            base_node_index={},
+            compiled_sql_index={"fct": ds_sql},
+        )
+
+        risks = [imp.risk for imp in updated[0].downstream_impacts]
+        assert "build_failure" in risks
+        assert "broken_ref" in risks
+        # broken_ref should escalate to DESTRUCTIVE
+        assert updated[0].safety == Safety.DESTRUCTIVE
+
+    def test_no_downstream_no_impact(self):
+        """Model with no downstream → no cascade analysis."""
+        from dbt_plan.predictor import analyze_cascade_impacts
+
+        pred = predict_ddl(
+            model_name="leaf",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            base_columns=["a", "b"],
+            current_columns=["a"],
+        )
+
+        updated, downstream_map = analyze_cascade_impacts(
+            predictions=[pred],
+            model_node_ids={"leaf": "model.test.leaf"},
+            model_cols={"leaf": (["a", "b"], ["a"])},
+            all_downstream={},
+            node_index={},
+            base_node_index={},
+            compiled_sql_index={},
+        )
+
+        assert updated[0].downstream_impacts == []
+        assert "leaf" not in downstream_map
+
+    def test_removed_model_cascade(self, tmp_path):
+        """Removed model → all base columns treated as removed for cascade."""
+        from dbt_plan.predictor import analyze_cascade_impacts
+
+        ds_sql = tmp_path / "fct.sql"
+        ds_sql.write_text("SELECT col_a, col_b FROM {{ ref('removed_model') }}")
+
+        pred = predict_ddl(
+            model_name="removed_model",
+            materialization="table",
+            on_schema_change=None,
+            base_columns=["col_a", "col_b"],
+            current_columns=None,
+            status="removed",
+        )
+
+        node_index = {
+            "fct": self._make_node("fct", "incremental", "ignore"),
+        }
+
+        updated, _ = analyze_cascade_impacts(
+            predictions=[pred],
+            model_node_ids={"removed_model": "model.test.removed_model"},
+            model_cols={"removed_model": (["col_a", "col_b"], None)},
+            all_downstream={"model.test.removed_model": ["model.test.fct"]},
+            node_index=node_index,
+            base_node_index={},
+            compiled_sql_index={"fct": ds_sql},
+        )
+
+        assert len(updated[0].downstream_impacts) == 1
+        assert updated[0].downstream_impacts[0].risk == "broken_ref"
+        assert "col_a" in updated[0].downstream_impacts[0].reason
+        assert "col_b" in updated[0].downstream_impacts[0].reason
+
+    def test_incremental_ignore_skips_cascade(self):
+        """Incremental+ignore → no cascade (no physical schema change)."""
+        from dbt_plan.predictor import analyze_cascade_impacts
+
+        pred = predict_ddl(
+            model_name="inc_ignore",
+            materialization="incremental",
+            on_schema_change="ignore",
+            base_columns=["a", "b"],
+            current_columns=["a", "c"],
+        )
+
+        node_index = {
+            "fct": self._make_node("fct", "incremental", "fail"),
+        }
+
+        updated, _ = analyze_cascade_impacts(
+            predictions=[pred],
+            model_node_ids={"inc_ignore": "model.test.inc_ignore"},
+            model_cols={"inc_ignore": (["a", "b"], ["a", "c"])},
+            all_downstream={"model.test.inc_ignore": ["model.test.fct"]},
+            node_index=node_index,
+            base_node_index={},
+            compiled_sql_index={},
+        )
+
+        assert updated[0].downstream_impacts == []
+
+    def test_unreadable_downstream_sql_skips_broken_ref(self, tmp_path):
+        """If downstream SQL file is unreadable, skip broken_ref check (no crash)."""
+        from dbt_plan.predictor import analyze_cascade_impacts
+
+        # Create a file path that doesn't exist (simulates deleted file)
+        nonexistent = tmp_path / "does_not_exist.sql"
+
+        pred = predict_ddl(
+            model_name="parent",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            base_columns=["a", "b"],
+            current_columns=["a"],
+        )
+
+        node_index = {
+            "fct": self._make_node("fct", "incremental", "ignore"),
+        }
+
+        # compiled_sql_index points to a nonexistent file
+        updated, _ = analyze_cascade_impacts(
+            predictions=[pred],
+            model_node_ids={"parent": "model.test.parent"},
+            model_cols={"parent": (["a", "b"], ["a"])},
+            all_downstream={"model.test.parent": ["model.test.fct"]},
+            node_index=node_index,
+            base_node_index={},
+            compiled_sql_index={"fct": nonexistent},
+        )
+
+        # Should not crash, and no broken_ref since file was unreadable
+        assert updated[0].downstream_impacts == []
+
+    def test_incremental_sync_does_cascade(self, tmp_path):
+        """Incremental+sync_all_columns → cascade analysis runs normally."""
+        from dbt_plan.predictor import analyze_cascade_impacts
+
+        ds_sql = tmp_path / "fct.sql"
+        ds_sql.write_text("SELECT dropped_col FROM {{ ref('parent') }}")
+
+        pred = predict_ddl(
+            model_name="parent",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            base_columns=["dropped_col", "kept_col"],
+            current_columns=["kept_col"],
+        )
+
+        node_index = {
+            "fct": self._make_node("fct", "incremental", "ignore"),
+        }
+
+        updated, _ = analyze_cascade_impacts(
+            predictions=[pred],
+            model_node_ids={"parent": "model.test.parent"},
+            model_cols={"parent": (["dropped_col", "kept_col"], ["kept_col"])},
+            all_downstream={"model.test.parent": ["model.test.fct"]},
+            node_index=node_index,
+            base_node_index={},
+            compiled_sql_index={"fct": ds_sql},
+        )
+
+        assert len(updated[0].downstream_impacts) == 1
+        assert updated[0].downstream_impacts[0].risk == "broken_ref"

@@ -70,6 +70,13 @@ def format_text(result: CheckResult, *, color: bool | None = None) -> str:
         if downstream:
             names = ", ".join(downstream)
             lines.append(f"  Downstream: {names} ({len(downstream)} model(s))")
+        # Cascade impacts
+        for impact in pred.downstream_impacts:
+            risk_label = _colored(
+                impact.risk.upper(),
+                Safety.WARNING if impact.risk != "broken_ref" else Safety.DESTRUCTIVE,
+            )
+            lines.append(f"  >> {risk_label}  {impact.model_name}: {impact.reason}")
         lines.append("")
 
     if result.parse_failures:
@@ -96,7 +103,11 @@ def _summary_line(result: CheckResult) -> str:
     safe = sum(1 for p in result.predictions if p.safety == Safety.SAFE)
     warn = sum(1 for p in result.predictions if p.safety == Safety.WARNING)
     dest = sum(1 for p in result.predictions if p.safety == Safety.DESTRUCTIVE)
-    return f"dbt-plan: {n} checked, {safe} safe, {warn} warning, {dest} destructive"
+    cascade = sum(len(p.downstream_impacts) for p in result.predictions)
+    line = f"dbt-plan: {n} checked, {safe} safe, {warn} warning, {dest} destructive"
+    if cascade:
+        line += f", {cascade} cascade risk(s)"
+    return line
 
 
 def format_github(result: CheckResult) -> str:
@@ -122,6 +133,11 @@ def format_github(result: CheckResult) -> str:
         if downstream:
             names = ", ".join(downstream)
             lines.append(f"- Downstream: {names} ({len(downstream)} model(s))")
+        for impact in pred.downstream_impacts:
+            risk_icon = "\u26a0\ufe0f" if impact.risk == "build_failure" else "\U0001f534"
+            lines.append(
+                f"- {risk_icon} **{impact.risk.upper()}** `{impact.model_name}`: {impact.reason}"
+            )
         lines.append("")
 
     if result.parse_failures:
@@ -160,15 +176,29 @@ def format_json(result: CheckResult) -> str:
         downstream = result.downstream_map.get(pred.model_name, [])
         if downstream:
             model["downstream"] = downstream
+        if pred.downstream_impacts:
+            model["downstream_impacts"] = [
+                {
+                    "model_name": imp.model_name,
+                    "risk": imp.risk,
+                    "reason": imp.reason,
+                }
+                for imp in pred.downstream_impacts
+            ]
         models.append(model)
 
+    cascade_count = sum(len(p.downstream_impacts) for p in result.predictions)
+    summary: dict = {
+        "total": len(result.predictions),
+        "safe": sum(1 for p in result.predictions if p.safety == Safety.SAFE),
+        "warning": sum(1 for p in result.predictions if p.safety == Safety.WARNING),
+        "destructive": sum(1 for p in result.predictions if p.safety == Safety.DESTRUCTIVE),
+    }
+    if cascade_count:
+        summary["cascade_risks"] = cascade_count
+
     output = {
-        "summary": {
-            "total": len(result.predictions),
-            "safe": sum(1 for p in result.predictions if p.safety == Safety.SAFE),
-            "warning": sum(1 for p in result.predictions if p.safety == Safety.WARNING),
-            "destructive": sum(1 for p in result.predictions if p.safety == Safety.DESTRUCTIVE),
-        },
+        "summary": summary,
         "models": models,
         "parse_failures": result.parse_failures,
         "skipped_models": result.skipped_models,

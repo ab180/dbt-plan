@@ -110,6 +110,138 @@ class TestSnapshotPathValidation:
         assert "Warning: manifest.json not found" in captured.err
         assert "Snapshot saved to" in captured.out
 
+    def test_snapshot_happy_path(self, tmp_path, capsys):
+        """Snapshot copies compiled SQL + manifest to .dbt-plan/base/."""
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        compiled = project_dir / "target" / "compiled" / "proj" / "models"
+        compiled.mkdir(parents=True)
+        (compiled / "m.sql").write_text("SELECT 1")
+        (project_dir / "target" / "manifest.json").write_text('{"nodes":{}}')
+
+        args = _make_snapshot_args(project_dir)
+        _do_snapshot(args)
+
+        captured = capsys.readouterr()
+        assert "Snapshot saved to" in captured.out
+        base = project_dir / ".dbt-plan" / "base"
+        assert (base / "compiled" / "m.sql").exists()
+        assert (base / "manifest.json").exists()
+
+    def test_snapshot_overwrites_existing(self, tmp_path, capsys):
+        """Running snapshot twice overwrites the first snapshot."""
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        compiled = project_dir / "target" / "compiled" / "proj" / "models"
+        compiled.mkdir(parents=True)
+        (compiled / "m.sql").write_text("SELECT 1")
+        (project_dir / "target" / "manifest.json").write_text('{"nodes":{}}')
+
+        args = _make_snapshot_args(project_dir)
+        _do_snapshot(args)
+        # Modify and re-snapshot
+        (compiled / "m.sql").write_text("SELECT 2")
+        _do_snapshot(args)
+
+        base = project_dir / ".dbt-plan" / "base"
+        assert (base / "compiled" / "m.sql").read_text() == "SELECT 2"
+
+    def test_snapshot_no_compiled_sql_exits_2(self, tmp_path):
+        """Snapshot exits 2 when no compiled SQL exists."""
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        (project_dir / "target").mkdir()
+
+        args = _make_snapshot_args(project_dir)
+        with pytest.raises(SystemExit) as exc_info:
+            _do_snapshot(args)
+        assert exc_info.value.code == 2
+
+
+class TestFindCompiledDir:
+    def test_flat_layout(self, tmp_path):
+        """Flat layout: target/compiled/models/ without project subdir."""
+        from dbt_plan.cli import _find_compiled_dir
+
+        compiled = tmp_path / "compiled"
+        models = compiled / "models"
+        models.mkdir(parents=True)
+        (models / "m.sql").write_text("SELECT 1")
+
+        result = _find_compiled_dir(tmp_path)
+        assert result == models
+
+    def test_standard_layout(self, tmp_path):
+        """Standard layout: target/compiled/{project}/models/."""
+        from dbt_plan.cli import _find_compiled_dir
+
+        compiled = tmp_path / "compiled"
+        models = compiled / "my_project" / "models"
+        models.mkdir(parents=True)
+        (models / "m.sql").write_text("SELECT 1")
+
+        result = _find_compiled_dir(tmp_path)
+        assert result == models
+
+    def test_no_compiled_dir(self, tmp_path):
+        """No compiled dir → None."""
+        from dbt_plan.cli import _find_compiled_dir
+
+        result = _find_compiled_dir(tmp_path)
+        assert result is None
+
+    def test_multiple_projects_raises(self, tmp_path):
+        """Multiple project dirs → ValueError."""
+        from dbt_plan.cli import _find_compiled_dir
+
+        compiled = tmp_path / "compiled"
+        (compiled / "proj_a" / "models").mkdir(parents=True)
+        (compiled / "proj_b" / "models").mkdir(parents=True)
+
+        with pytest.raises(ValueError, match="Multiple dbt projects"):
+            _find_compiled_dir(tmp_path)
+
+
+class TestCheckErrorPaths:
+    def test_missing_base_dir_returns_2(self, tmp_path, capsys):
+        """check returns 2 when base dir does not exist."""
+        project_dir = _make_project(
+            tmp_path,
+            models_sql={"m": "SELECT 1"},
+            manifest={"nodes": {}, "child_map": {}},
+        )
+        # No base snapshot
+        args = _make_check_args(project_dir)
+        exit_code = _do_check(args)
+        assert exit_code == 2
+        assert "snapshot" in capsys.readouterr().err.lower()
+
+    def test_missing_manifest_returns_2(self, tmp_path, capsys):
+        """check returns 2 when manifest.json is missing."""
+        project_dir = _make_project(
+            tmp_path,
+            models_sql={"m": "SELECT 1"},
+            base_sql={"m": "SELECT 1"},
+        )
+        # manifest not created
+        args = _make_check_args(project_dir)
+        exit_code = _do_check(args)
+        assert exit_code == 2
+        assert "manifest" in capsys.readouterr().err.lower()
+
+    def test_corrupt_manifest_returns_2(self, tmp_path, capsys):
+        """check returns 2 when manifest.json is invalid JSON and there are changes."""
+        project_dir = _make_project(
+            tmp_path,
+            models_sql={"m": "SELECT a, b FROM t"},
+            base_sql={"m": "SELECT a FROM t"},
+        )
+        (project_dir / "target" / "manifest.json").write_text("{invalid json")
+        args = _make_check_args(project_dir)
+        exit_code = _do_check(args)
+        assert exit_code == 2
+        assert "manifest" in capsys.readouterr().err.lower()
+
 
 class TestCheckValueErrorCatch:
     def test_check_catches_duplicate_model_valueerror(self, tmp_path, capsys):
@@ -253,6 +385,154 @@ class TestCheckJsonFormatWithPredictions:
         assert data["summary"]["total"] == 1
         assert data["models"][0]["model_name"] == "m"
         assert data["models"][0]["safety"] == "safe"
+
+
+class TestExitCodes:
+    def test_warning_prediction_returns_warning_exit_code(self, tmp_path, capsys):
+        """WARNING prediction (e.g., BUILD FAILURE) returns warning_exit_code, not 0."""
+        manifest = {
+            "nodes": {
+                "model.p.m": {
+                    "name": "m",
+                    "config": {
+                        "materialized": "incremental",
+                        "on_schema_change": "fail",
+                    },
+                },
+            },
+            "child_map": {},
+        }
+        project_dir = _make_project(
+            tmp_path,
+            models_sql={"m": "SELECT a, b, c FROM t"},
+            manifest=manifest,
+            base_sql={"m": "SELECT a, b FROM t"},
+            base_manifest=manifest,
+        )
+
+        args = _make_check_args(project_dir)
+        exit_code = _do_check(args)
+        assert exit_code == 2  # default warning_exit_code
+
+    def test_safe_prediction_returns_zero(self, tmp_path, capsys):
+        """SAFE prediction returns exit code 0."""
+        manifest = {
+            "nodes": {
+                "model.p.m": {
+                    "name": "m",
+                    "config": {"materialized": "table"},
+                },
+            },
+            "child_map": {},
+        }
+        project_dir = _make_project(
+            tmp_path,
+            models_sql={"m": "SELECT a, b FROM t"},
+            manifest=manifest,
+            base_sql={"m": "SELECT a FROM t"},
+            base_manifest=manifest,
+        )
+
+        args = _make_check_args(project_dir)
+        exit_code = _do_check(args)
+        assert exit_code == 0
+
+
+class TestConfigChangeDetection:
+    def test_materialization_change_detected(self, tmp_path, capsys):
+        """Model changing from table to incremental shows MATERIALIZATION CHANGED."""
+        base_manifest = {
+            "nodes": {
+                "model.p.m": {
+                    "name": "m",
+                    "config": {"materialized": "table"},
+                },
+            },
+            "child_map": {},
+        }
+        current_manifest = {
+            "nodes": {
+                "model.p.m": {
+                    "name": "m",
+                    "config": {"materialized": "incremental", "on_schema_change": "ignore"},
+                },
+            },
+            "child_map": {},
+        }
+        project_dir = _make_project(
+            tmp_path,
+            models_sql={"m": "SELECT a, b FROM t"},
+            manifest=current_manifest,
+            base_sql={"m": "SELECT a FROM t"},
+            base_manifest=base_manifest,
+        )
+        args = _make_check_args(project_dir)
+        exit_code = _do_check(args)
+        captured = capsys.readouterr()
+        assert "MATERIALIZATION CHANGED" in captured.out
+        assert "table -> incremental" in captured.out
+        assert exit_code == 2  # WARNING
+
+    def test_on_schema_change_policy_change_detected(self, tmp_path, capsys):
+        """on_schema_change changing from ignore to sync_all_columns shows warning."""
+        base_manifest = {
+            "nodes": {
+                "model.p.m": {
+                    "name": "m",
+                    "config": {"materialized": "incremental", "on_schema_change": "ignore"},
+                },
+            },
+            "child_map": {},
+        }
+        current_manifest = {
+            "nodes": {
+                "model.p.m": {
+                    "name": "m",
+                    "config": {
+                        "materialized": "incremental",
+                        "on_schema_change": "sync_all_columns",
+                    },
+                },
+            },
+            "child_map": {},
+        }
+        project_dir = _make_project(
+            tmp_path,
+            models_sql={"m": "SELECT a, b, c FROM t"},
+            manifest=current_manifest,
+            base_sql={"m": "SELECT a, b FROM t"},
+            base_manifest=base_manifest,
+        )
+        args = _make_check_args(project_dir)
+        exit_code = _do_check(args)
+        captured = capsys.readouterr()
+        assert "on_schema_change CHANGED" in captured.out
+        assert "ignore -> sync_all_columns" in captured.out
+        assert exit_code == 2  # WARNING (osc change + SAFE from sync = WARNING wins)
+
+    def test_no_change_no_extra_ops(self, tmp_path, capsys):
+        """Same materialization and osc → no config change ops."""
+        manifest = {
+            "nodes": {
+                "model.p.m": {
+                    "name": "m",
+                    "config": {"materialized": "table"},
+                },
+            },
+            "child_map": {},
+        }
+        project_dir = _make_project(
+            tmp_path,
+            models_sql={"m": "SELECT a, b FROM t"},
+            manifest=manifest,
+            base_sql={"m": "SELECT a FROM t"},
+            base_manifest=manifest,
+        )
+        args = _make_check_args(project_dir)
+        _do_check(args)
+        captured = capsys.readouterr()
+        assert "MATERIALIZATION CHANGED" not in captured.out
+        assert "on_schema_change CHANGED" not in captured.out
 
 
 class TestSelectFilter:
@@ -476,6 +756,228 @@ class TestManifestColumnFallback:
         # Without fallback columns, the prediction should indicate review needed
         op_texts = [op["operation"] for op in pred["operations"]]
         assert any("REVIEW REQUIRED" in op for op in op_texts)
+
+
+class TestInit:
+    def test_creates_config_file(self, tmp_path):
+        """init creates .dbt-plan.yml with sample config."""
+        import argparse
+
+        args = argparse.Namespace(project_dir=str(tmp_path))
+        from dbt_plan.cli import _do_init
+
+        _do_init(args)
+        config_path = tmp_path / ".dbt-plan.yml"
+        assert config_path.exists()
+        content = config_path.read_text()
+        assert "ignore_models" in content
+        assert "warning_exit_code" in content
+
+    def test_creates_gitignore_if_missing(self, tmp_path):
+        """init creates .gitignore with .dbt-plan/ if absent."""
+        import argparse
+
+        args = argparse.Namespace(project_dir=str(tmp_path))
+        from dbt_plan.cli import _do_init
+
+        _do_init(args)
+        gitignore = tmp_path / ".gitignore"
+        assert gitignore.exists()
+        assert ".dbt-plan/" in gitignore.read_text()
+
+    def test_appends_to_existing_gitignore(self, tmp_path):
+        """init appends .dbt-plan/ to existing .gitignore."""
+        import argparse
+
+        gitignore = tmp_path / ".gitignore"
+        gitignore.write_text("node_modules/\n")
+        args = argparse.Namespace(project_dir=str(tmp_path))
+        from dbt_plan.cli import _do_init
+
+        _do_init(args)
+        content = gitignore.read_text()
+        assert "node_modules/" in content
+        assert ".dbt-plan/" in content
+
+    def test_skips_gitignore_if_entry_exists(self, tmp_path, capsys):
+        """init does not duplicate .dbt-plan/ in .gitignore."""
+        import argparse
+
+        gitignore = tmp_path / ".gitignore"
+        gitignore.write_text(".dbt-plan/\n")
+        args = argparse.Namespace(project_dir=str(tmp_path))
+        from dbt_plan.cli import _do_init
+
+        _do_init(args)
+        output = capsys.readouterr().out
+        assert "Added" not in output  # should not add again
+
+    def test_rejects_existing_config(self, tmp_path):
+        """init exits 2 when config already exists."""
+        import argparse
+
+        (tmp_path / ".dbt-plan.yml").write_text("# existing\n")
+        args = argparse.Namespace(project_dir=str(tmp_path))
+        from dbt_plan.cli import _do_init
+
+        with pytest.raises(SystemExit) as exc_info:
+            _do_init(args)
+        assert exc_info.value.code == 2
+
+
+class TestStats:
+    def _make_stats_args(self, project_dir, manifest=None, dialect=None):
+        import argparse
+
+        return argparse.Namespace(
+            project_dir=str(project_dir),
+            target_dir="target",
+            manifest=manifest,
+            dialect=dialect,
+        )
+
+    def test_stats_counts_materializations(self, tmp_path, capsys):
+        """stats shows materialization counts."""
+        project_dir = _make_project(
+            tmp_path,
+            models_sql={"m1": "SELECT a FROM t"},
+            manifest={
+                "nodes": {
+                    "model.p.m1": {
+                        "name": "m1",
+                        "config": {"materialized": "table"},
+                    },
+                    "model.p.m2": {
+                        "name": "m2",
+                        "config": {"materialized": "incremental", "on_schema_change": "fail"},
+                    },
+                },
+                "child_map": {},
+            },
+        )
+        from dbt_plan.cli import _do_stats
+
+        _do_stats(self._make_stats_args(project_dir))
+        output = capsys.readouterr().out
+        assert "table" in output
+        assert "incremental" in output
+        assert "2 model(s) in manifest" in output
+
+    def test_stats_cascade_risk(self, tmp_path, capsys):
+        """stats shows cascade risk count for incremental+fail models."""
+        project_dir = _make_project(
+            tmp_path,
+            models_sql={"m1": "SELECT a FROM t"},
+            manifest={
+                "nodes": {
+                    "model.p.m1": {
+                        "name": "m1",
+                        "config": {"materialized": "incremental", "on_schema_change": "fail"},
+                    },
+                },
+                "child_map": {},
+            },
+        )
+        from dbt_plan.cli import _do_stats
+
+        _do_stats(self._make_stats_args(project_dir))
+        output = capsys.readouterr().out
+        assert "Cascade risk" in output
+        assert "1 incremental model(s)" in output
+
+    def test_stats_missing_manifest_exits_2(self, tmp_path):
+        """stats exits 2 when manifest.json is missing."""
+        project_dir = _make_project(tmp_path, models_sql={"m": "SELECT 1"})
+        # No manifest
+        from dbt_plan.cli import _do_stats
+
+        with pytest.raises(SystemExit) as exc_info:
+            _do_stats(self._make_stats_args(project_dir))
+        assert exc_info.value.code == 2
+
+    def test_stats_no_compiled_sql_still_works(self, tmp_path, capsys):
+        """stats works when there's no compiled SQL directory (manifest only)."""
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        target = project_dir / "target"
+        target.mkdir()
+        (target / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "nodes": {
+                        "model.p.m": {"name": "m", "config": {"materialized": "view"}},
+                    },
+                    "child_map": {},
+                }
+            )
+        )
+        from dbt_plan.cli import _do_stats
+
+        _do_stats(self._make_stats_args(project_dir))
+        output = capsys.readouterr().out
+        assert "1 model(s) in manifest" in output
+        # No division by zero — SELECT * section should be skipped
+        assert "SELECT *" not in output
+
+
+class TestCiSetup:
+    def test_creates_workflow_file(self, tmp_path, capsys):
+        """ci-setup creates .github/workflows/dbt-plan.yml."""
+        import argparse
+
+        from dbt_plan.cli import _do_ci_setup
+
+        args = argparse.Namespace(project_dir=str(tmp_path))
+        _do_ci_setup(args)
+
+        workflow = tmp_path / ".github" / "workflows" / "dbt-plan.yml"
+        assert workflow.exists()
+        content = workflow.read_text()
+        assert "dbt-plan" in content
+        assert "dbt compile" in content
+        assert "dbt-plan check" in content
+        assert "dbt-plan snapshot" in content
+
+        output = capsys.readouterr().out
+        assert "Created" in output
+
+    def test_rejects_existing_workflow(self, tmp_path):
+        """ci-setup exits 2 when workflow already exists."""
+        import argparse
+
+        from dbt_plan.cli import _do_ci_setup
+
+        workflows = tmp_path / ".github" / "workflows"
+        workflows.mkdir(parents=True)
+        (workflows / "dbt-plan.yml").write_text("existing")
+
+        args = argparse.Namespace(project_dir=str(tmp_path))
+        with pytest.raises(SystemExit) as exc_info:
+            _do_ci_setup(args)
+        assert exc_info.value.code == 2
+
+
+class TestRun:
+    def test_run_missing_dbt_returns_2(self, tmp_path, capsys, monkeypatch):
+        """run returns 2 when dbt is not available."""
+        import argparse
+
+        from dbt_plan.cli import _do_run
+
+        # Make dbt unavailable by overriding PATH
+        monkeypatch.setenv("PATH", str(tmp_path))
+
+        args = argparse.Namespace(
+            project_dir=str(tmp_path),
+            format=None,
+            no_color=True,
+            verbose=False,
+            dialect=None,
+            select=None,
+        )
+        exit_code = _do_run(args)
+        assert exit_code == 2
+        assert "dbt not found" in capsys.readouterr().err
 
 
 class TestMainNoCommand:

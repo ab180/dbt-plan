@@ -121,3 +121,23 @@ class TestEdgeCases:
         """
         result = extract_columns(sql)
         assert result is None or isinstance(result, list)
+
+
+class TestColumnExtractionEdgeCases:
+    def test_non_select_sql_returns_none(self):
+        """CREATE TABLE or INSERT → None (no SELECT to extract from)."""
+        assert extract_columns("CREATE TABLE foo (id INT)") is None
+
+    def test_empty_sql_returns_none(self):
+        """Empty string → None."""
+        assert extract_columns("") is None
+
+    def test_comment_only_returns_none(self):
+        """SQL with only comments → None."""
+        assert extract_columns("-- just a comment") is None
+
+    def test_bare_union_all_returns_first_branch(self):
+        """UNION ALL returns first branch's columns (SQL standard)."""
+        sql = "SELECT a, b FROM t1 UNION ALL SELECT x, y FROM t2"
+        result = extract_columns(sql)
+        assert result == ["a", "b"]

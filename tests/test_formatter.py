@@ -3,7 +3,7 @@
 import json
 
 from dbt_plan.formatter import CheckResult, format_github, format_json, format_text
-from dbt_plan.predictor import DDLOperation, DDLPrediction, Safety
+from dbt_plan.predictor import DDLOperation, DDLPrediction, DownstreamImpact, Safety
 
 
 class TestFormatText:
@@ -212,3 +212,125 @@ class TestFormatJson:
         data = json.loads(raw)
         assert data["summary"]["total"] == 0
         assert data["models"] == []
+
+
+class TestCascadeImpactFormatting:
+    """Tests for cascade impact output in all three formatters."""
+
+    def _make_cascade_result(self):
+        impact = DownstreamImpact(
+            model_name="fct_metrics",
+            materialization="incremental",
+            on_schema_change="ignore",
+            risk="broken_ref",
+            reason="references dropped column(s): old_col",
+        )
+        return CheckResult(
+            predictions=[
+                DDLPrediction(
+                    model_name="int_unified",
+                    materialization="incremental",
+                    on_schema_change="sync_all_columns",
+                    safety=Safety.DESTRUCTIVE,
+                    operations=[DDLOperation("DROP COLUMN", "old_col")],
+                    columns_removed=["old_col"],
+                    downstream_impacts=[impact],
+                ),
+            ],
+            downstream_map={"int_unified": ["fct_metrics", "dim_device"]},
+        )
+
+    def test_text_shows_cascade_broken_ref(self):
+        """Text format shows >> BROKEN_REF line."""
+        result = self._make_cascade_result()
+        output = format_text(result, color=False)
+        assert "BROKEN_REF" in output
+        assert "fct_metrics" in output
+        assert "references dropped column(s): old_col" in output
+
+    def test_github_shows_cascade_broken_ref(self):
+        """GitHub format shows risk icon and bold label."""
+        result = self._make_cascade_result()
+        output = format_github(result)
+        assert "**BROKEN_REF**" in output
+        assert "fct_metrics" in output
+
+    def test_json_includes_downstream_impacts(self):
+        """JSON format includes downstream_impacts array."""
+        result = self._make_cascade_result()
+        raw = format_json(result)
+        data = json.loads(raw)
+        model = data["models"][0]
+        assert "downstream_impacts" in model
+        assert len(model["downstream_impacts"]) == 1
+        assert model["downstream_impacts"][0]["risk"] == "broken_ref"
+        assert model["downstream_impacts"][0]["model_name"] == "fct_metrics"
+
+    def test_summary_line_includes_cascade_count(self):
+        """Summary line shows cascade risk count when present."""
+        result = self._make_cascade_result()
+        output = format_text(result, color=False)
+        assert "1 cascade risk(s)" in output
+
+    def test_summary_line_no_cascade_when_none(self):
+        """Summary line omits cascade count when there are no cascade risks."""
+        result = CheckResult(
+            predictions=[
+                DDLPrediction(
+                    model_name="safe_model",
+                    materialization="table",
+                    on_schema_change=None,
+                    safety=Safety.SAFE,
+                ),
+            ],
+        )
+        output = format_text(result, color=False)
+        assert "cascade" not in output
+
+    def test_json_includes_cascade_risks_in_summary(self):
+        """JSON summary includes cascade_risks count when present."""
+        result = self._make_cascade_result()
+        raw = format_json(result)
+        data = json.loads(raw)
+        assert data["summary"]["cascade_risks"] == 1
+
+    def test_json_no_cascade_risks_key_when_none(self):
+        """JSON summary omits cascade_risks key when there are no cascade risks."""
+        result = CheckResult(
+            predictions=[
+                DDLPrediction(
+                    model_name="safe_model",
+                    materialization="table",
+                    on_schema_change=None,
+                    safety=Safety.SAFE,
+                ),
+            ],
+        )
+        raw = format_json(result)
+        data = json.loads(raw)
+        assert "cascade_risks" not in data["summary"]
+
+    def test_text_shows_build_failure(self):
+        """Text format shows >> BUILD_FAILURE for incremental+fail downstream."""
+        impact = DownstreamImpact(
+            model_name="fct_daily",
+            materialization="incremental",
+            on_schema_change="fail",
+            risk="build_failure",
+            reason="upstream schema changed, on_schema_change=fail",
+        )
+        result = CheckResult(
+            predictions=[
+                DDLPrediction(
+                    model_name="parent",
+                    materialization="table",
+                    on_schema_change=None,
+                    safety=Safety.WARNING,
+                    downstream_impacts=[impact],
+                ),
+            ],
+            downstream_map={"parent": ["fct_daily"]},
+        )
+        output = format_text(result, color=False)
+        assert "BUILD_FAILURE" in output
+        assert "fct_daily" in output

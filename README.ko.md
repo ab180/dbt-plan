@@ -11,7 +11,7 @@ dbt 버전의 `terraform plan`.
 ## 빠른 시작
 
 ```bash
-pip install git+https://github.com/ab180/dbt-plan@v0.1.0
+pip install dbt-plan
 
 # dbt 프로젝트 디렉토리에서:
 dbt compile
@@ -39,7 +39,7 @@ SAFE  dim_device (table)
   CREATE OR REPLACE TABLE
 ```
 
-## 현재 되는 것 (v0.1.0)
+## 현재 되는 것 (v0.2.0)
 
 | 기능 | 상태 | 설명 |
 |------|------|------|
@@ -94,7 +94,7 @@ jobs:
         with: { fetch-depth: 0 }
 
       - run: pip install uv && uv sync
-      - run: pip install git+https://github.com/ab180/dbt-plan@v0.1.0
+      - run: pip install dbt-plan
 
       # Base 브랜치 컴파일 + 스냅샷
       - run: |

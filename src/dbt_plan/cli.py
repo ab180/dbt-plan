@@ -1,4 +1,4 @@
-"""CLI entry point for dbt-plan."""
+"""CLI entry point for dbt-plan — static analysis tool for dbt DDL risk warnings."""
 
 from __future__ import annotations
 
@@ -124,7 +124,7 @@ def _do_init(args: argparse.Namespace) -> None:
 
     if config_path.exists():
         print(f"Config already exists: {config_path}", file=sys.stderr)
-        sys.exit(1)
+        sys.exit(2)
 
     config_path.write_text(_SAMPLE_CONFIG)
     print(f"Created {config_path}")
@@ -225,6 +225,12 @@ def _do_stats(args: argparse.Namespace) -> None:
             if remaining:
                 print(f"  Remaining without fallback: {remaining} (add column docs to resolve)")
 
+    # Cascade risk: reuse already-computed counter instead of re-scanning manifest
+    fail_chains = incremental_osc.get("fail", 0)
+    if fail_chains:
+        print(f"\nCascade risk: {fail_chains} incremental model(s) with on_schema_change=fail")
+        print("  These will break if upstream schema changes")
+
     # Readiness score
     monitorable = incremental_osc.get("sync_all_columns", 0) + incremental_osc.get("fail", 0)
     safe = mat_counts.get("table", 0) + mat_counts.get("view", 0) + mat_counts.get("ephemeral", 0)
@@ -232,12 +238,14 @@ def _do_stats(args: argparse.Namespace) -> None:
 
 
 def _do_check(args: argparse.Namespace) -> int:
-    """Diff compiled SQL and predict DDL impact.
+    """Analyze compiled SQL changes and warn about DDL risks.
 
     Returns:
-        Exit code: 0=safe, 1=destructive, 2=error.
+        Exit code: 0=safe, 1=destructive, 2=warning/error.
     """
     # Lazy imports: sqlglot and heavy modules only loaded when actually needed
+    from dataclasses import replace as _replace
+
     from dbt_plan.columns import extract_columns
     from dbt_plan.config import Config
     from dbt_plan.diff import diff_compiled_dirs
@@ -246,15 +254,20 @@ def _do_check(args: argparse.Namespace) -> int:
         find_downstream_batch,
         load_manifest,
     )
-    from dbt_plan.predictor import Safety, predict_ddl
+    from dbt_plan.predictor import (
+        DDLOperation,
+        Safety,
+        analyze_cascade_impacts,
+        predict_ddl,
+    )
 
     project_dir = Path(args.project_dir)
 
     # Load config: .dbt-plan.yml → env vars → CLI flags (highest precedence)
     config = Config.load(project_dir)
     # CLI flags override config/env (getattr for backward compat with tests)
-    fmt = getattr(args, "format", "text")
-    if fmt == "text":
+    fmt = getattr(args, "format", None)
+    if fmt is None:
         fmt = config.format
     no_color = getattr(args, "no_color", False) or config.no_color
     verbose = getattr(args, "verbose", False) or config.verbose
@@ -301,7 +314,11 @@ def _do_check(args: argparse.Namespace) -> int:
         return 2
 
     if not manifest_path.exists():
-        print(f"Error: manifest.json not found: {manifest_path}", file=sys.stderr)
+        print(
+            f"Error: manifest.json not found: {manifest_path}\n"
+            "Run 'dbt compile' to generate it, or use --manifest to specify a custom path.",
+            file=sys.stderr,
+        )
         return 2
 
     # 1. Diff compiled dirs
@@ -375,6 +392,7 @@ def _do_check(args: argparse.Namespace) -> int:
     parse_failures: list[str] = []
     skipped_models: list[str] = []
     model_node_ids: dict[str, str] = {}  # model_name → node_id for batch downstream
+    model_cols: dict[str, tuple[list[str] | None, list[str] | None]] = {}  # for cascade
 
     for diff in model_diffs:
         # O(1) lookup via index instead of O(N) scan
@@ -435,17 +453,76 @@ def _do_check(args: argparse.Namespace) -> int:
             current_columns=current_cols,
             status=diff.status,
         )
+
+        # Detect materialization or on_schema_change config changes
+        if base_node and diff.status == "modified":
+            extra_ops: list[DDLOperation] = []
+            config_safety = prediction.safety
+
+            if base_node.materialization != node.materialization:
+                extra_ops.append(
+                    DDLOperation(
+                        f"MATERIALIZATION CHANGED: "
+                        f"{base_node.materialization} -> {node.materialization}"
+                    )
+                )
+                config_safety = Safety.WARNING
+                _log(
+                    f"  Config change: materialization "
+                    f"{base_node.materialization} -> {node.materialization}"
+                )
+
+            base_osc = base_node.on_schema_change or "ignore"
+            curr_osc = node.on_schema_change or "ignore"
+            if base_osc != curr_osc:
+                extra_ops.append(
+                    DDLOperation(f"on_schema_change CHANGED: {base_osc} -> {curr_osc}")
+                )
+                # ignore -> sync_all_columns is especially dangerous
+                if curr_osc == "sync_all_columns" and base_osc == "ignore":
+                    config_safety = Safety.WARNING
+                _log(f"  Config change: on_schema_change {base_osc} -> {curr_osc}")
+
+            if extra_ops:
+                # Use the higher severity between config change and DDL prediction
+                _severity = {Safety.SAFE: 0, Safety.WARNING: 1, Safety.DESTRUCTIVE: 2}
+                final_safety = (
+                    config_safety
+                    if _severity[config_safety] > _severity[prediction.safety]
+                    else prediction.safety
+                )
+                prediction = _replace(
+                    prediction,
+                    operations=extra_ops + list(prediction.operations),
+                    safety=final_safety,
+                )
+
         predictions.append(prediction)
         model_node_ids[diff.model_name] = node.node_id
+        model_cols[diff.model_name] = (base_cols, current_cols)
 
     # 3b. Batch downstream computation (memoized, avoids redundant BFS)
     all_downstream = find_downstream_batch(list(model_node_ids.values()), child_map)
-    downstream_map: dict[str, list[str]] = {}
-    for model_name, node_id in model_node_ids.items():
-        downstream = all_downstream.get(node_id, [])
-        if downstream:
-            downstream_names = [nid.split(".")[-1] for nid in downstream]
-            downstream_map[model_name] = downstream_names
+
+    # 3c. Build compiled SQL index once (O(1) lookup instead of rglob per downstream)
+    compiled_sql_index: dict[str, Path] = {}
+    if current_compiled:
+        for sql_file in current_compiled.rglob("*.sql"):
+            compiled_sql_index[sql_file.stem] = sql_file
+
+    # 3d. Cascade impact analysis (extracted to predictor module)
+    predictions, downstream_map = analyze_cascade_impacts(
+        predictions=predictions,
+        model_node_ids=model_node_ids,
+        model_cols=model_cols,
+        all_downstream=all_downstream,
+        node_index=node_index,
+        base_node_index=base_node_index,
+        compiled_sql_index=compiled_sql_index,
+    )
+    for pred in predictions:
+        if pred.downstream_impacts:
+            _log(f"  Cascade impacts for {pred.model_name}: {len(pred.downstream_impacts)}")
 
     # 4. Format output
     check_result = CheckResult(predictions, downstream_map, parse_failures, skipped_models)
@@ -459,9 +536,175 @@ def _do_check(args: argparse.Namespace) -> int:
     # 5. Exit code
     if any(p.safety == Safety.DESTRUCTIVE for p in predictions):
         return 1
+    if any(p.safety == Safety.WARNING for p in predictions):
+        return config.warning_exit_code
     if parse_failures:
         return config.warning_exit_code
     return 0
+
+
+_CI_WORKFLOW = """\
+name: dbt-plan
+on:
+  pull_request:
+    paths: ['models/**', 'macros/**', 'dbt_project.yml']
+
+concurrency:
+  group: dbt-plan-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: DDL Impact Check
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+
+      - name: Install
+        run: |
+          pip install uv && uv sync
+          pip install dbt-plan
+
+      - name: Snapshot base
+        run: |
+          git checkout ${{ github.event.pull_request.base.sha }}
+          dbt compile && dbt-plan snapshot
+
+      - name: Check current
+        run: |
+          git checkout ${{ github.event.pull_request.head.sha }}
+          dbt compile
+          dbt-plan check --format github >> $GITHUB_STEP_SUMMARY
+
+      - name: Gate
+        run: dbt-plan check
+"""
+
+
+def _do_ci_setup(args: argparse.Namespace) -> None:
+    """Generate a GitHub Actions workflow for dbt-plan CI."""
+    project_dir = Path(args.project_dir)
+    workflows_dir = project_dir / ".github" / "workflows"
+    workflow_path = workflows_dir / "dbt-plan.yml"
+
+    if workflow_path.exists():
+        print(f"Workflow already exists: {workflow_path}", file=sys.stderr)
+        sys.exit(2)
+
+    workflows_dir.mkdir(parents=True, exist_ok=True)
+    workflow_path.write_text(_CI_WORKFLOW)
+    print(f"Created {workflow_path}")
+    print("Push this file to enable dbt-plan on every PR.")
+
+
+def _do_run(args: argparse.Namespace) -> int:
+    """One-command check: compile baseline, compile current, run check.
+
+    Requires dbt to be installed. Uses git to get the baseline state.
+
+    Returns:
+        Exit code from check (0=safe, 1=destructive, 2=warning/error).
+    """
+    import subprocess
+
+    project_dir = Path(args.project_dir)
+    fmt = getattr(args, "format", None) or "text"
+    no_color = getattr(args, "no_color", False)
+    verbose = getattr(args, "verbose", False)
+    dialect = getattr(args, "dialect", None)
+    select = getattr(args, "select", None)
+
+    def _log(msg: str) -> None:
+        print(f"  [dbt-plan run] {msg}", file=sys.stderr)
+
+    # 0. Verify dbt is available
+    try:
+        result = subprocess.run(["dbt", "--version"], capture_output=True)
+    except FileNotFoundError:
+        result = None
+    if result is None or result.returncode != 0:
+        print(
+            "Error: dbt not found. Install dbt-core first: pip install dbt-core",
+            file=sys.stderr,
+        )
+        return 2
+
+    # 1. Check for uncommitted changes
+    git_status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        capture_output=True,
+        text=True,
+        cwd=str(project_dir),
+    )
+    has_changes = bool(git_status.stdout.strip())
+
+    # 2. Stash uncommitted changes (we need clean state for baseline)
+    if has_changes:
+        _log("Stashing uncommitted changes...")
+        subprocess.run(
+            ["git", "stash", "push", "-m", "dbt-plan-run-temp", "--include-untracked"],
+            capture_output=True,
+            cwd=str(project_dir),
+        )
+
+    # 3. Compile baseline + snapshot
+    _log("Compiling baseline (current branch HEAD)...")
+    compile_base = subprocess.run(
+        ["dbt", "compile"],
+        capture_output=True,
+        text=True,
+        cwd=str(project_dir),
+    )
+    if compile_base.returncode != 0:
+        print(f"Error: dbt compile failed for baseline:\n{compile_base.stderr}", file=sys.stderr)
+        if has_changes:
+            subprocess.run(["git", "stash", "pop"], capture_output=True, cwd=str(project_dir))
+        return 2
+
+    _log("Saving snapshot...")
+    snapshot_args = argparse.Namespace(
+        project_dir=str(project_dir),
+        target_dir="target",
+    )
+    _do_snapshot(snapshot_args)
+
+    # 4. Restore stashed changes
+    if has_changes:
+        _log("Restoring your changes...")
+        subprocess.run(["git", "stash", "pop"], capture_output=True, cwd=str(project_dir))
+
+    # 5. Compile current state
+    _log("Compiling current state...")
+    compile_curr = subprocess.run(
+        ["dbt", "compile"],
+        capture_output=True,
+        text=True,
+        cwd=str(project_dir),
+    )
+    if compile_curr.returncode != 0:
+        print(f"Error: dbt compile failed for current:\n{compile_curr.stderr}", file=sys.stderr)
+        return 2
+
+    # 6. Run check
+    _log("Checking for DDL risks...")
+    check_args = argparse.Namespace(
+        project_dir=str(project_dir),
+        target_dir="target",
+        base_dir=".dbt-plan/base",
+        manifest=None,
+        format=fmt,
+        no_color=no_color,
+        verbose=verbose,
+        dialect=dialect,
+        select=select,
+    )
+    return _do_check(check_args)
 
 
 def main() -> None:
@@ -469,14 +712,20 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(
         prog="dbt-plan",
-        description="Preview what DDL changes dbt run will execute",
+        description="Static analysis tool that warns about risky DDL changes before dbt run",
         epilog=(
-            "typical workflow:\n"
+            "quick start:\n"
+            "  dbt-plan run               # one command: compile + snapshot + check\n"
+            "\n"
+            "manual workflow:\n"
             "  dbt compile\n"
             "  dbt-plan snapshot          # save baseline\n"
             "  # ... edit models ...\n"
             "  dbt compile\n"
-            "  dbt-plan check             # see predicted DDL changes\n"
+            "  dbt-plan check             # see what changed\n"
+            "\n"
+            "ci setup:\n"
+            "  dbt-plan ci-setup          # generate GitHub Actions workflow\n"
             "\n"
             "exit codes:\n"
             "  0  all changes are safe\n"
@@ -496,7 +745,9 @@ def main() -> None:
     )
 
     # check
-    check = subparsers.add_parser("check", help="Diff compiled SQL and predict DDL impact")
+    check = subparsers.add_parser(
+        "check", help="Analyze compiled SQL changes and warn about risks"
+    )
     check.add_argument("--project-dir", default=".", help="dbt project directory (default: .)")
     check.add_argument(
         "--target-dir", default="target", help="dbt target directory (default: target)"
@@ -514,7 +765,7 @@ def main() -> None:
     check.add_argument(
         "--format",
         choices=["text", "github", "json"],
-        default="text",
+        default=None,
         help="Output format: text (terminal), github (markdown), json (programmatic)",
     )
     check.add_argument(
@@ -559,6 +810,54 @@ def main() -> None:
         default=None,
         help="Path to manifest.json (default: {target-dir}/manifest.json)",
     )
+    stats_cmd.add_argument(
+        "--dialect",
+        default=None,
+        help="SQL dialect for parsing (default: snowflake). Supports any sqlglot dialect.",
+    )
+
+    # ci-setup
+    ci_cmd = subparsers.add_parser(
+        "ci-setup", help="Generate GitHub Actions workflow for dbt-plan CI"
+    )
+    ci_cmd.add_argument("--project-dir", default=".", help="dbt project directory (default: .)")
+
+    # run
+    run_cmd = subparsers.add_parser(
+        "run",
+        help="One-command check: compile baseline → compile current → check (requires dbt)",
+    )
+    run_cmd.add_argument("--project-dir", default=".", help="dbt project directory (default: .)")
+    run_cmd.add_argument(
+        "--format",
+        choices=["text", "github", "json"],
+        default=None,
+        help="Output format (default: text)",
+    )
+    run_cmd.add_argument(
+        "--no-color",
+        action="store_true",
+        default=False,
+        help="Disable colored output",
+    )
+    run_cmd.add_argument(
+        "-s",
+        "--select",
+        default=None,
+        help="Only check specific models (comma-separated)",
+    )
+    run_cmd.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        default=False,
+        help="Show detailed processing info",
+    )
+    run_cmd.add_argument(
+        "--dialect",
+        default=None,
+        help="SQL dialect for parsing (default: snowflake)",
+    )
 
     args = parser.parse_args()
 
@@ -574,6 +873,10 @@ def main() -> None:
         sys.exit(_do_check(args))
     elif args.command == "stats":
         _do_stats(args)
+    elif args.command == "ci-setup":
+        _do_ci_setup(args)
+    elif args.command == "run":
+        sys.exit(_do_run(args))
 
 
 if __name__ == "__main__":
