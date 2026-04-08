@@ -314,32 +314,69 @@
 
   <!-- CI Integration -->
   <section>
-    <h2>CI integration (GitHub Actions)</h2>
+    <h2>CI integration</h2>
+    <div class="steps">
+      <div class="step">
+        <div><span class="step-num">1</span><span class="step-title">Generate workflow</span></div>
+        <div class="step-desc">One command creates <code>.github/workflows/dbt-plan.yml</code> with snapshot, check, and merge gate.</div>
+        <pre>dbt-plan ci-setup</pre>
+      </div>
+      <div class="step">
+        <div><span class="step-num">2</span><span class="step-title">Push and done</span></div>
+        <div class="step-desc">Every PR that touches models/ will be checked. Destructive changes block merge (exit 1).</div>
+        <pre>git add .github/workflows/dbt-plan.yml
+git push</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- All Commands -->
+  <section>
+    <h2>All commands</h2>
+    <table class="scope-table">
+      <thead>
+        <tr><th>Command</th><th>What it does</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>dbt-plan run</td><td>One command: compile baseline, compile current, check. Handles git stash automatically.</td></tr>
+        <tr><td>dbt-plan check</td><td>Analyze compiled SQL changes and warn about risks. Supports --format text/github/json, --select.</td></tr>
+        <tr><td>dbt-plan snapshot</td><td>Save current compiled SQL + manifest as baseline for later comparison.</td></tr>
+        <tr><td>dbt-plan ci-setup</td><td>Generate GitHub Actions workflow that runs dbt-plan on every PR.</td></tr>
+        <tr><td>dbt-plan init</td><td>Generate .dbt-plan.yml config + add .dbt-plan/ to .gitignore.</td></tr>
+        <tr><td>dbt-plan stats</td><td>Analyze project: materialization distribution, SELECT * usage, cascade risks.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- Configuration -->
+  <section>
+    <h2>Configuration</h2>
     <div class="step">
-      <div class="step-desc">Add to your PR workflow. Blocks merge on destructive changes.</div>
-      <pre><span style="color:var(--text-muted)">name:</span> dbt-plan
-<span style="color:var(--text-muted)">on:</span>
-  pull_request:
-    paths: ['models/**']
+      <div class="step-desc">Create <code>.dbt-plan.yml</code> in your project root, or use environment variables.</div>
+      <pre><span style="color:var(--text-muted)"># .dbt-plan.yml</span>
 
-<span style="color:var(--text-muted)">jobs:</span>
-  plan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - run: pip install dbt-plan
+<span style="color:var(--text-muted)"># Skip known-safe models</span>
+ignore_models: [scratch_model, staging_temp]
 
-      - run: |
-          git checkout ${{ github.event.pull_request.base.sha }}
-          dbt compile && dbt-plan snapshot
+<span style="color:var(--text-muted)"># SQL dialect (default: snowflake)</span>
+dialect: bigquery
 
-      - run: |
-          git checkout ${{ github.event.pull_request.head.sha }}
-          dbt compile
-          dbt-plan check --format github >> $GITHUB_STEP_SUMMARY
+<span style="color:var(--text-muted)"># Custom compile command (for uv, poetry, etc.)</span>
+compile_command: uv run dbt compile
 
-      - run: dbt-plan check  <span style="color:var(--text-muted)"># exit 1 blocks merge</span></pre>
+<span style="color:var(--text-muted)"># Exit code for warnings (default: 2, set 0 to pass CI)</span>
+warning_exit_code: 0</pre>
+    </div>
+    <div class="step" style="margin-top: 16px">
+      <div class="step-desc">All settings also work as environment variables (for CI):</div>
+      <pre>DBT_PLAN_DIALECT=bigquery
+DBT_PLAN_COMPILE_COMMAND="uv run dbt compile"
+DBT_PLAN_IGNORE_MODELS="scratch_model,staging_temp"
+DBT_PLAN_FORMAT=json
+DBT_PLAN_WARNING_EXIT_CODE=0</pre>
+    </div>
+    <div class="step-desc" style="margin-top: 12px; color: var(--text-muted); font-size: 0.82rem;">
+      Priority: CLI flags > environment variables > .dbt-plan.yml > defaults
     </div>
   </section>
 

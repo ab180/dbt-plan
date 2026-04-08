@@ -114,6 +114,10 @@ _SAMPLE_CONFIG = """\
 
 # Disable colored terminal output (default: false)
 # no_color: false
+
+# Command to compile dbt project (default: dbt compile)
+# Use this if you run dbt through a wrapper like uv, poetry, or a custom script
+# compile_command: uv run dbt compile
 """
 
 
@@ -607,11 +611,17 @@ def _do_run(args: argparse.Namespace) -> int:
     """One-command check: compile baseline, compile current, run check.
 
     Requires dbt to be installed. Uses git to get the baseline state.
+    The compile command can be customized via:
+      --compile-command flag, DBT_PLAN_COMPILE_COMMAND env var, or
+      compile_command in .dbt-plan.yml (default: "dbt compile").
 
     Returns:
         Exit code from check (0=safe, 1=destructive, 2=warning/error).
     """
+    import shlex
     import subprocess
+
+    from dbt_plan.config import Config
 
     project_dir = Path(args.project_dir)
     fmt = getattr(args, "format", None) or "text"
@@ -620,20 +630,30 @@ def _do_run(args: argparse.Namespace) -> int:
     dialect = getattr(args, "dialect", None)
     select = getattr(args, "select", None)
 
+    # Resolve compile command: CLI flag > config (env + file)
+    config = Config.load(project_dir)
+    compile_command = getattr(args, "compile_command", None) or config.compile_command
+
     def _log(msg: str) -> None:
         print(f"  [dbt-plan run] {msg}", file=sys.stderr)
 
-    # 0. Verify dbt is available
+    # 0. Verify compile command is available
+    compile_argv = shlex.split(compile_command)
     try:
-        result = subprocess.run(["dbt", "--version"], capture_output=True)
+        result = subprocess.run([compile_argv[0], "--version"], capture_output=True)
     except FileNotFoundError:
         result = None
     if result is None or result.returncode != 0:
         print(
-            "Error: dbt not found. Install dbt-core first: pip install dbt-core",
+            f"Error: '{compile_argv[0]}' not found.\n"
+            f"  Compile command: {compile_command}\n"
+            "  Set compile_command in .dbt-plan.yml or DBT_PLAN_COMPILE_COMMAND env var.\n"
+            "  Examples: 'uv run dbt compile', 'poetry run dbt compile'",
             file=sys.stderr,
         )
         return 2
+
+    _log(f"Compile command: {compile_command}")
 
     # 1. Check for uncommitted changes
     git_status = subprocess.run(
@@ -656,13 +676,16 @@ def _do_run(args: argparse.Namespace) -> int:
     # 3. Compile baseline + snapshot
     _log("Compiling baseline (current branch HEAD)...")
     compile_base = subprocess.run(
-        ["dbt", "compile"],
+        compile_argv,
         capture_output=True,
         text=True,
         cwd=str(project_dir),
     )
     if compile_base.returncode != 0:
-        print(f"Error: dbt compile failed for baseline:\n{compile_base.stderr}", file=sys.stderr)
+        print(
+            f"Error: compile failed for baseline:\n{compile_base.stderr}",
+            file=sys.stderr,
+        )
         if has_changes:
             subprocess.run(["git", "stash", "pop"], capture_output=True, cwd=str(project_dir))
         return 2
@@ -682,13 +705,16 @@ def _do_run(args: argparse.Namespace) -> int:
     # 5. Compile current state
     _log("Compiling current state...")
     compile_curr = subprocess.run(
-        ["dbt", "compile"],
+        compile_argv,
         capture_output=True,
         text=True,
         cwd=str(project_dir),
     )
     if compile_curr.returncode != 0:
-        print(f"Error: dbt compile failed for current:\n{compile_curr.stderr}", file=sys.stderr)
+        print(
+            f"Error: compile failed for current:\n{compile_curr.stderr}",
+            file=sys.stderr,
+        )
         return 2
 
     # 6. Run check
@@ -857,6 +883,12 @@ def main() -> None:
         "--dialect",
         default=None,
         help="SQL dialect for parsing (default: snowflake)",
+    )
+    run_cmd.add_argument(
+        "--compile-command",
+        default=None,
+        help="Command to compile dbt project (default: 'dbt compile'). "
+        "Examples: 'uv run dbt compile', 'poetry run dbt compile'",
     )
 
     args = parser.parse_args()
