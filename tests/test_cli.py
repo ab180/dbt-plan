@@ -974,10 +974,34 @@ class TestRun:
             verbose=False,
             dialect=None,
             select=None,
+            compile_command=None,
         )
         exit_code = _do_run(args)
         assert exit_code == 2
-        assert "dbt not found" in capsys.readouterr().err
+        assert "not found" in capsys.readouterr().err
+
+    def test_run_custom_compile_command_not_found(self, tmp_path, capsys, monkeypatch):
+        """run returns 2 with helpful error when custom compile command not found."""
+        import argparse
+
+        from dbt_plan.cli import _do_run
+
+        monkeypatch.setenv("PATH", str(tmp_path))
+
+        args = argparse.Namespace(
+            project_dir=str(tmp_path),
+            format=None,
+            no_color=True,
+            verbose=False,
+            dialect=None,
+            select=None,
+            compile_command="uv run dbt compile",
+        )
+        exit_code = _do_run(args)
+        assert exit_code == 2
+        err = capsys.readouterr().err
+        assert "not found" in err
+        assert "compile_command" in err
 
 
 class TestMainNoCommand:

@@ -24,6 +24,9 @@ class Config:
     verbose: bool = False
     dialect: str = "snowflake"
     include_packages: bool = False  # if True, also check models from dbt packages
+    compile_command: str = (
+        "dbt compile"  # command to compile dbt project (e.g., "uv run dbt compile")
+    )
 
     @classmethod
     def load(cls, project_dir: str | Path = ".") -> Config:
@@ -78,6 +81,9 @@ class Config:
                     self.dialect = value
             elif key == "include_packages":
                 self.include_packages = value.lower() in ("true", "1", "yes")
+            elif key == "compile_command":
+                if value:
+                    self.compile_command = value
 
     def _load_env(self) -> None:
         """Override config with environment variables."""
@@ -102,3 +108,6 @@ class Config:
                     self.warning_exit_code = val
             except ValueError:
                 pass
+        if cc := os.environ.get("DBT_PLAN_COMPILE_COMMAND"):
+            if cc:
+                self.compile_command = cc
