@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-04-08
+
+### Added
+- **`compile_command` config**: customizable compile command via CLI flag, env var, or `.dbt-plan.yml`
+  - Supports `uv run dbt compile`, `poetry run dbt compile`, custom scripts
+  - Priority: CLI flag > env var > config file > default (`dbt compile`)
+- **Landing page updates**: All Commands table, Configuration section, CI integration steps
+
+## [0.3.0] - 2026-04-08
+
 ### Added
 - **Cascade impact analysis**: detect downstream broken column references and build failures
   - `BROKEN_REF`: downstream SQL references a dropped column (word-boundary matching)
@@ -26,13 +36,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Requires dbt to be installed (convenience wrapper, not a core dependency)
 - **`dbt-plan ci-setup`**: generates GitHub Actions workflow for dbt-plan CI
   - Creates `.github/workflows/dbt-plan.yml` with snapshot → check → gate pipeline
+- **Landing page**: `docs/index.html` for GitHub Pages
 
 ### Fixed
 - **Exit code for WARNING predictions**: `BUILD FAILURE`, `STALE COLUMNS`, and other WARNING-level predictions now correctly return `warning_exit_code` (default 2) instead of 0
 - **Disabled models excluded**: models with `enabled: false` are no longer indexed, preventing false `MODEL REMOVED` warnings
 - Exit code bounds validation: `warning_exit_code` now requires 0-255 range
 - Graceful handling of unreadable downstream SQL files during cascade analysis
-- Misleading manifest.py docstring about streaming (was actually full parse)
+- `--format text` correctly overrides config `format: github`
+- `_do_init` exit code consistency (1 → 2)
+- Unknown `on_schema_change` shows operation name in output
 
 ## [0.2.0] - 2026-04-06
 
@@ -79,6 +92,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed model detection: DESTRUCTIVE regardless of materialization
 - Base manifest fallback: finds removed models in snapshot manifest
 
-[Unreleased]: https://github.com/ab180/dbt-plan/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/ab180/dbt-plan/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/ab180/dbt-plan/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/ab180/dbt-plan/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ab180/dbt-plan/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ab180/dbt-plan/releases/tag/v0.1.0
