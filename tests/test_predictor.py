@@ -111,6 +111,42 @@ class TestIncrementalAppendAndSync:
         assert any("UNKNOWN" in op.operation for op in result.operations)
         assert any("custom_future_value" in op.operation for op in result.operations)
 
+    def test_duplicate_base_columns_trigger_warning(self):
+        """Duplicate column names in base (from JOIN) → REVIEW REQUIRED, never FALSE SAFE."""
+        result = predict_ddl(
+            model_name="m",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            base_columns=["id", "id", "name"],
+            current_columns=["id", "name"],
+        )
+        assert result.safety == Safety.WARNING
+        assert any("duplicate" in op.operation.lower() for op in result.operations)
+
+    def test_duplicate_current_columns_trigger_warning(self):
+        """Duplicate column names in current → REVIEW REQUIRED."""
+        result = predict_ddl(
+            model_name="m",
+            materialization="incremental",
+            on_schema_change="fail",
+            base_columns=["id", "name"],
+            current_columns=["id", "id", "name"],
+        )
+        assert result.safety == Safety.WARNING
+
+    def test_no_false_safe_with_duplicate_columns(self):
+        """Core principle: duplicate columns must never produce FALSE SAFE."""
+        # This exact scenario was the bug: set dedup hides the dropped column
+        result = predict_ddl(
+            model_name="m",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            base_columns=["a_id", "b_id", "a_id"],  # duplicate from JOIN
+            current_columns=["a_id", "b_id"],
+        )
+        # Must NOT be SAFE — we can't determine if a column was actually dropped
+        assert result.safety != Safety.SAFE
+
     def test_sync_safe_when_no_changes(self):
         """incremental + sync_all_columns + same columns → SAFE, no ops."""
         result = predict_ddl(
