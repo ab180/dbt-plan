@@ -202,6 +202,57 @@ class TestFindCompiledDir:
             _find_compiled_dir(tmp_path)
 
 
+class TestCheckLegacyAndEdgePaths:
+    def test_legacy_snapshot_format(self, tmp_path, capsys):
+        """check works with old snapshot format (SQL directly in base_dir, no compiled/ subdir)."""
+        manifest = {
+            "nodes": {
+                "model.p.m": {"name": "m", "config": {"materialized": "table"}},
+            },
+            "child_map": {},
+        }
+        project_dir = _make_project(
+            tmp_path,
+            models_sql={"m": "SELECT a, b FROM t"},
+            manifest=manifest,
+        )
+        # Create legacy format: SQL directly in .dbt-plan/base/ (no compiled/ subdir)
+        base_dir = project_dir / ".dbt-plan" / "base"
+        base_dir.mkdir(parents=True)
+        (base_dir / "m.sql").write_text("SELECT a FROM t")
+        (base_dir / "manifest.json").write_text(json.dumps(manifest))
+
+        args = _make_check_args(project_dir)
+        exit_code = _do_check(args)
+        assert exit_code == 0
+        output = capsys.readouterr().out
+        assert "m" in output
+
+    def test_missing_current_compiled_returns_2(self, tmp_path, capsys):
+        """check returns 2 when current compiled SQL directory doesn't exist."""
+        manifest = {
+            "nodes": {"model.p.m": {"name": "m", "config": {"materialized": "table"}}},
+            "child_map": {},
+        }
+        project_dir = _make_project(
+            tmp_path,
+            manifest=manifest,
+            base_sql={"m": "SELECT 1"},
+            base_manifest=manifest,
+        )
+        # Remove compiled dir but keep target/
+        import shutil
+
+        compiled = project_dir / "target" / "compiled"
+        if compiled.exists():
+            shutil.rmtree(compiled)
+
+        args = _make_check_args(project_dir)
+        exit_code = _do_check(args)
+        assert exit_code == 2
+        assert "compile" in capsys.readouterr().err.lower()
+
+
 class TestCheckErrorPaths:
     def test_missing_base_dir_returns_2(self, tmp_path, capsys):
         """check returns 2 when base dir does not exist."""
