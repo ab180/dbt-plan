@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-04-10
+
+### Fixed
+- **Duplicate column names no longer produce FALSE SAFE**: columns with duplicates (e.g., from JOINs) now return REVIEW REQUIRED instead of potentially wrong SAFE
+
+### Changed
+- Landing page: added "Safe by design" and "200+ tests" feature cards
+- Test coverage: 206 tests, 93% overall, 6/8 modules at 100%
+
 ## [0.3.2] - 2026-04-10
 
 ### Changed
@@ -110,7 +119,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed model detection: DESTRUCTIVE regardless of materialization
 - Base manifest fallback: finds removed models in snapshot manifest
 
-[Unreleased]: https://github.com/ab180/dbt-plan/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/ab180/dbt-plan/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/ab180/dbt-plan/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/ab180/dbt-plan/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/ab180/dbt-plan/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/ab180/dbt-plan/compare/v0.2.0...v0.3.0
