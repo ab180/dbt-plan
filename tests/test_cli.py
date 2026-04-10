@@ -1112,10 +1112,36 @@ class TestRun:
         assert "compile_command" in err
 
 
-class TestMainNoCommand:
+class TestMainDispatch:
     def test_no_subcommand_exits_zero(self):
         """Running dbt-plan with no subcommand exits with code 0."""
         with patch("sys.argv", ["dbt-plan"]):
             with pytest.raises(SystemExit) as exc_info:
                 main()
             assert exc_info.value.code == 0
+
+    def test_main_init_dispatch(self, tmp_path):
+        """main() dispatches init subcommand."""
+        with patch("sys.argv", ["dbt-plan", "init", "--project-dir", str(tmp_path)]):
+            main()
+        assert (tmp_path / ".dbt-plan.yml").exists()
+
+    def test_main_ci_setup_dispatch(self, tmp_path):
+        """main() dispatches ci-setup subcommand."""
+        with patch("sys.argv", ["dbt-plan", "ci-setup", "--project-dir", str(tmp_path)]):
+            main()
+        assert (tmp_path / ".github" / "workflows" / "dbt-plan.yml").exists()
+
+    def test_main_stats_dispatch(self, tmp_path, capsys):
+        """main() dispatches stats subcommand."""
+        project_dir = _make_project(
+            tmp_path,
+            models_sql={"m": "SELECT 1"},
+            manifest={
+                "nodes": {"model.p.m": {"name": "m", "config": {"materialized": "table"}}},
+                "child_map": {},
+            },
+        )
+        with patch("sys.argv", ["dbt-plan", "stats", "--project-dir", str(project_dir)]):
+            main()
+        assert "1 model(s)" in capsys.readouterr().out
