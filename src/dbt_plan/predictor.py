@@ -166,6 +166,19 @@ def predict_ddl(
             operations=[DDLOperation("REVIEW REQUIRED (SELECT *)")],
         )
 
+    # Detect duplicate column names (e.g., from JOINs without aliases)
+    # Duplicates make set diff unreliable — we can't determine the real schema change
+    base_has_dupes = len(base_columns) != len(set(base_columns))
+    current_has_dupes = len(current_columns) != len(set(current_columns))
+    if base_has_dupes or current_has_dupes:
+        return DDLPrediction(
+            model_name=model_name,
+            materialization=materialization,
+            on_schema_change=osc,
+            safety=Safety.WARNING,
+            operations=[DDLOperation("REVIEW REQUIRED (duplicate column names)")],
+        )
+
     # Column diff
     base_set = set(base_columns)
     current_set = set(current_columns)
