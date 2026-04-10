@@ -57,7 +57,7 @@ SAFE  dim_device (table)
 dbt-plan: 2 checked, 1 safe, 0 warning, 1 destructive, 1 cascade risk(s)
 ```
 
-## What Works (v0.3.1)
+## What Works (v0.3.3)
 
 | Feature | Status | Details |
 |---------|--------|---------|
@@ -65,15 +65,19 @@ dbt-plan: 2 checked, 1 safe, 0 warning, 1 destructive, 1 cascade risk(s)
 | DDL prediction | **Done** | All materialization x on_schema_change combinations |
 | Downstream impact | **Done** | Memoized batch BFS, cycle protection |
 | Cascade impact analysis | **Done** | Broken column refs, build failures in downstream models |
+| Config change detection | **Done** | Materialization and on_schema_change policy changes |
 | Removed model detection | **Done** | Always DESTRUCTIVE (ephemeral = SAFE) |
 | Parse failure safety | **Done** | Never returns SAFE when columns unknown |
+| Duplicate column safety | **Done** | Ambiguous columns trigger REVIEW REQUIRED |
 | SELECT * fallback | **Done** | Manifest column definitions as fallback |
 | Output formats | **Done** | `--format text` (color) / `github` / `json` |
-| Configuration | **Done** | `.dbt-plan.yml` + env vars (`DBT_PLAN_*`) |
-| Commands | **Done** | `snapshot`, `check`, `init`, `stats` |
+| Configuration | **Done** | `.dbt-plan.yml` + env vars (`DBT_PLAN_*`) + `compile_command` |
+| Commands | **Done** | `snapshot`, `check`, `init`, `stats`, `run`, `ci-setup` |
+| One-command check | **Done** | `dbt-plan run` — compile + snapshot + check in one step |
+| CI setup | **Done** | `dbt-plan ci-setup` — generates GitHub Actions workflow |
 | Model filtering | **Done** | `--select model1,model2` / `ignore_models` in config |
 | Package filtering | **Done** | Auto-excludes dbt package models |
-| CI integration | **Done** | Lint (ruff) + test + 90% coverage, CI workflow template |
+| CI integration | **Done** | 209 tests, 93% coverage, CI workflow template |
 | Verbose mode | **Done** | `--verbose` / `-v` for debugging |
 
 ## Scope
