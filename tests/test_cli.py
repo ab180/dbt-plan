@@ -688,6 +688,63 @@ class TestSelectFilter:
         assert data["summary"]["total"] == 0
 
 
+class TestIgnoreModels:
+    def test_ignore_models_excludes_from_check(self, tmp_path, capsys):
+        """Models in ignore_models config are excluded from check."""
+        manifest = {
+            "nodes": {
+                "model.p.m1": {"name": "m1", "config": {"materialized": "table"}},
+                "model.p.m2": {"name": "m2", "config": {"materialized": "table"}},
+            },
+            "child_map": {},
+        }
+        project_dir = _make_project(
+            tmp_path,
+            models_sql={"m1": "SELECT a, b FROM t", "m2": "SELECT x, y FROM t"},
+            manifest=manifest,
+            base_sql={"m1": "SELECT a FROM t", "m2": "SELECT x FROM t"},
+            base_manifest=manifest,
+        )
+        # Create config with ignore_models
+        (project_dir / ".dbt-plan.yml").write_text("ignore_models: [m2]\n")
+
+        args = _make_check_args(project_dir, fmt="json")
+        _do_check(args)
+        data = json.loads(capsys.readouterr().out)
+        model_names = [m["model_name"] for m in data["models"]]
+        assert "m1" in model_names
+        assert "m2" not in model_names
+
+
+class TestParseFailures:
+    def test_parse_failure_incremental_produces_warning(self, tmp_path, capsys):
+        """Unparseable SQL on incremental model → parse failure warning."""
+        manifest = {
+            "nodes": {
+                "model.p.m": {
+                    "name": "m",
+                    "config": {
+                        "materialized": "incremental",
+                        "on_schema_change": "sync_all_columns",
+                    },
+                },
+            },
+            "child_map": {},
+        }
+        project_dir = _make_project(
+            tmp_path,
+            models_sql={"m": "THIS IS NOT VALID SQL AT ALL"},
+            manifest=manifest,
+            base_sql={"m": "SELECT a, b FROM t"},
+            base_manifest=manifest,
+        )
+        args = _make_check_args(project_dir, fmt="json")
+        exit_code = _do_check(args)
+        data = json.loads(capsys.readouterr().out)
+        assert "m" in data["parse_failures"]
+        assert exit_code == 2  # warning
+
+
 class TestManifestColumnFallback:
     def test_current_cols_fallback_from_manifest(self, tmp_path, capsys):
         """When extract_columns returns ['*'], use node.columns from manifest."""

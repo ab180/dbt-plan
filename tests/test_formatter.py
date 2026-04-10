@@ -143,6 +143,25 @@ class TestFormatTextParseFailuresColor:
         assert "manual review required" in output
 
 
+class TestFormatGithubParseFailures:
+    def test_parse_failures_warning_in_github(self):
+        """Parse failures produce a blockquote WARNING in github output."""
+        result = CheckResult(
+            predictions=[
+                DDLPrediction(
+                    model_name="m",
+                    materialization="incremental",
+                    on_schema_change="sync_all_columns",
+                    safety=Safety.WARNING,
+                ),
+            ],
+            parse_failures=["broken_sql_model"],
+        )
+        output = format_github(result)
+        assert "> **WARNING**: Could not extract columns" in output
+        assert "broken_sql_model" in output
+
+
 class TestFormatGithubSkippedModels:
     def test_skipped_models_warning_in_github(self):
         """Skipped models produce a blockquote WARNING in github output."""
