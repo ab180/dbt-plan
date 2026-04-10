@@ -134,3 +134,58 @@ class TestEnvVars:
         monkeypatch.setenv("DBT_PLAN_WARNING_EXIT_CODE", "-5")
         config = Config.load(tmp_path)
         assert config.warning_exit_code == 2  # default
+
+    def test_env_warning_exit_code_non_numeric(self, tmp_path, monkeypatch):
+        """Env var with non-numeric exit code is ignored."""
+        monkeypatch.setenv("DBT_PLAN_WARNING_EXIT_CODE", "abc")
+        config = Config.load(tmp_path)
+        assert config.warning_exit_code == 2  # default
+
+    def test_env_include_packages(self, tmp_path, monkeypatch):
+        """DBT_PLAN_INCLUDE_PACKAGES enables package model checking."""
+        monkeypatch.setenv("DBT_PLAN_INCLUDE_PACKAGES", "true")
+        config = Config.load(tmp_path)
+        assert config.include_packages is True
+
+    def test_env_compile_command(self, tmp_path, monkeypatch):
+        """DBT_PLAN_COMPILE_COMMAND overrides compile command."""
+        monkeypatch.setenv("DBT_PLAN_COMPILE_COMMAND", "uv run dbt compile")
+        config = Config.load(tmp_path)
+        assert config.compile_command == "uv run dbt compile"
+
+    def test_file_no_color(self, tmp_path):
+        """no_color setting from config file."""
+        (tmp_path / ".dbt-plan.yml").write_text("no_color: true\n")
+        config = Config.load(tmp_path)
+        assert config.no_color is True
+
+    def test_file_include_packages(self, tmp_path):
+        """include_packages setting from config file."""
+        (tmp_path / ".dbt-plan.yml").write_text("include_packages: true\n")
+        config = Config.load(tmp_path)
+        assert config.include_packages is True
+
+    def test_file_compile_command(self, tmp_path):
+        """compile_command setting from config file."""
+        (tmp_path / ".dbt-plan.yml").write_text("compile_command: poetry run dbt compile\n")
+        config = Config.load(tmp_path)
+        assert config.compile_command == "poetry run dbt compile"
+
+    def test_file_warning_exit_code_non_numeric(self, tmp_path):
+        """Non-numeric warning_exit_code in config file is ignored."""
+        (tmp_path / ".dbt-plan.yml").write_text("warning_exit_code: abc\n")
+        config = Config.load(tmp_path)
+        assert config.warning_exit_code == 2  # default
+
+    def test_line_without_colon_ignored(self, tmp_path):
+        """Config lines without colon separator are silently ignored."""
+        (tmp_path / ".dbt-plan.yml").write_text("this line has no separator\nformat: json\n")
+        config = Config.load(tmp_path)
+        assert config.format == "json"
+
+    def test_unreadable_config_file(self, tmp_path):
+        """Config file that can't be read uses defaults."""
+        config_path = tmp_path / ".dbt-plan.yml"
+        config_path.mkdir()  # directory, not a file → OSError on read
+        config = Config.load(tmp_path)
+        assert config.dialect == "snowflake"  # default
