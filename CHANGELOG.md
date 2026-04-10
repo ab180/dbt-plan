@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-04-10
+
+### Changed
+- PyPI classifier: `Alpha` → `Beta` (reflecting production readiness)
+- Added License, Python version classifiers for PyPI discoverability
+- Documentation URL added to PyPI metadata
+
+### Fixed
+- README feature table version v0.2.0 → v0.3.1
+- CONTRIBUTING.md stale version reference and Good First Issues
+- CHANGELOG entries moved from Unreleased to proper version sections
+- CI now enforces coverage threshold (`--cov` flag)
+
+### Added
+- `SECURITY.md` with vulnerability reporting policy
+- CI concurrency groups (cancel duplicate runs)
+- 200 tests total, config.py at 100% coverage
+
 ## [0.3.1] - 2026-04-08
 
 ### Added
@@ -92,7 +110,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed model detection: DESTRUCTIVE regardless of materialization
 - Base manifest fallback: finds removed models in snapshot manifest
 
-[Unreleased]: https://github.com/ab180/dbt-plan/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/ab180/dbt-plan/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/ab180/dbt-plan/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/ab180/dbt-plan/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/ab180/dbt-plan/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ab180/dbt-plan/compare/v0.1.0...v0.2.0
