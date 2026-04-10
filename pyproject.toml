@@ -8,8 +8,13 @@ license = "Apache-2.0"
 authors = [{ name = "ab180" }]
 keywords = ["dbt", "ddl", "impact-analysis", "ci", "snowflake", "bigquery", "redshift"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Database",
     "Topic :: Software Development :: Quality Assurance",
 ]
@@ -27,6 +32,7 @@ dbt = ["dbt-core>=1.7.0", "dbt-duckdb>=1.7.0"]
 
 [project.urls]
 Homepage = "https://github.com/ab180/dbt-plan"
+Documentation = "https://ab180.github.io/dbt-plan"
 Repository = "https://github.com/ab180/dbt-plan"
 Issues = "https://github.com/ab180/dbt-plan/issues"
 

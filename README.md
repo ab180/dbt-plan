@@ -57,7 +57,7 @@ SAFE  dim_device (table)
 dbt-plan: 2 checked, 1 safe, 0 warning, 1 destructive, 1 cascade risk(s)
 ```
 
-## What Works (v0.2.0)
+## What Works (v0.3.1)
 
 | Feature | Status | Details |
 |---------|--------|---------|
@@ -176,12 +176,13 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, TDD workflow, and 
 
 ```
 src/dbt_plan/
-├── columns.py      # SQLGlot column extraction
-├── predictor.py    # DDL prediction rules
+├── columns.py      # SQLGlot column extraction (multi-dialect)
+├── config.py       # .dbt-plan.yml + env var configuration
+├── predictor.py    # DDL risk assessment rules + cascade analysis
 ├── manifest.py     # manifest.json parsing + downstream BFS
 ├── diff.py         # compiled SQL directory comparison
-├── formatter.py    # text / GitHub markdown output
-└── cli.py          # CLI entry point (snapshot, check)
+├── formatter.py    # text / GitHub markdown / JSON output
+└── cli.py          # CLI: snapshot, check, init, stats, run, ci-setup
 ```
 
 ### How to Contribute

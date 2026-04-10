@@ -7,7 +7,7 @@ git clone https://github.com/ab180/dbt-plan
 cd dbt-plan
 uv sync --extra test             # or: pip install -e ".[dev]"
 make test                        # all tests should pass
-dbt-plan --version               # dbt-plan 0.2.0
+dbt-plan --version               # should show installed version
 ```
 
 ## Adding Features
@@ -28,7 +28,7 @@ src/dbt_plan/
 ├── manifest.py     # manifest.json parsing, node index, downstream BFS
 ├── diff.py         # compiled SQL directory comparison with caching
 ├── formatter.py    # text (color) / GitHub markdown / JSON output
-└── cli.py          # CLI: snapshot, check, init, stats
+└── cli.py          # CLI: snapshot, check, init, stats, run, ci-setup
 ```
 
 Data flow: `diff_compiled_dirs` -> `extract_columns` -> `predict_ddl` -> `find_downstream_batch` -> `format_text/github/json`
@@ -43,10 +43,10 @@ Data flow: `diff_compiled_dirs` -> `extract_columns` -> `predict_ddl` -> `find_d
 
 ## Good First Issues
 
-- Add compiled SQL fixtures in `tests/fixtures/` for more edge cases
+- Add compiled SQL fixtures in `tests/fixtures/` for edge cases (UNION, subqueries, MERGE)
 - Add `pre-commit` hooks configuration
-- Add PyPI publishing to release workflow
 - Add type checking with mypy
+- Add `SECURITY.md` with vulnerability reporting instructions
 
 ## Testing
 
