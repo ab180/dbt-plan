@@ -1,6 +1,6 @@
 """dbt-plan: Static analysis tool that warns about risky DDL changes before dbt run."""
 
-__version__ = "0.3.3"
+__version__ = "0.3.4"
 
 __all__ = [
     "__version__",
