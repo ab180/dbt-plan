@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-04-11
+
+### Added
+- Real-world dbt SQL test fixtures (window functions, CTE chains, UNION ALL)
+- 216 tests total, 93% coverage
+
+### Fixed
+- mypy strict type annotations — 0 errors (deque[str], dict[str, Any])
+- Release workflow: version-tag consistency check + test gate before publish
+
 ## [0.3.4] - 2026-04-11
 
 ### Fixed
@@ -130,7 +140,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed model detection: DESTRUCTIVE regardless of materialization
 - Base manifest fallback: finds removed models in snapshot manifest
 
-[Unreleased]: https://github.com/ab180/dbt-plan/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/ab180/dbt-plan/compare/v0.3.5...HEAD
+[0.3.5]: https://github.com/ab180/dbt-plan/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/ab180/dbt-plan/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/ab180/dbt-plan/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/ab180/dbt-plan/compare/v0.3.1...v0.3.2
