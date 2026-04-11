@@ -1112,6 +1112,57 @@ class TestRun:
         assert "compile_command" in err
 
 
+class TestRunGitHandling:
+    def test_run_no_git_returns_2(self, tmp_path, capsys, monkeypatch):
+        """run returns 2 with helpful error when git is not available."""
+        import argparse
+
+        from dbt_plan.cli import _do_run
+
+        # dbt available but git not
+        fake_bin = tmp_path / "bin"
+        fake_bin.mkdir()
+        (fake_bin / "dbt").write_text("#!/bin/sh\necho 'dbt'")
+        (fake_bin / "dbt").chmod(0o755)
+        monkeypatch.setenv("PATH", str(fake_bin))
+
+        args = argparse.Namespace(
+            project_dir=str(tmp_path),
+            format=None,
+            no_color=True,
+            verbose=False,
+            dialect=None,
+            select=None,
+            compile_command=None,
+        )
+        exit_code = _do_run(args)
+        assert exit_code == 2
+        err = capsys.readouterr().err
+        assert "git" in err.lower()
+
+
+class TestSelectWarning:
+    def test_select_no_match_warns(self, tmp_path, capsys):
+        """--select with no matching changed models warns on stderr."""
+        manifest = {
+            "nodes": {
+                "model.p.m1": {"name": "m1", "config": {"materialized": "table"}},
+            },
+            "child_map": {},
+        }
+        project_dir = _make_project(
+            tmp_path,
+            models_sql={"m1": "SELECT a, b FROM t"},
+            manifest=manifest,
+            base_sql={"m1": "SELECT a FROM t"},
+            base_manifest=manifest,
+        )
+        args = _make_check_args(project_dir, select="nonexistent")
+        _do_check(args)
+        err = capsys.readouterr().err
+        assert "matched no changed models" in err
+
+
 class TestMainDispatch:
     def test_no_subcommand_exits_zero(self):
         """Running dbt-plan with no subcommand exits with code 0."""
