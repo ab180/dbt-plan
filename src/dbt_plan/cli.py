@@ -337,8 +337,16 @@ def _do_check(args: argparse.Namespace) -> int:
     select_models = getattr(args, "select", None)
     if select_models:
         select_set = {s.strip() for s in select_models.split(",") if s.strip()}
+        before_select = len(model_diffs)
         model_diffs = [d for d in model_diffs if d.model_name in select_set]
         _log(f"Selected {len(model_diffs)} model(s) matching: {select_set}")
+        if before_select > 0 and not model_diffs:
+            unmatched = select_set - {d.model_name for d in model_diffs}
+            print(
+                f"Warning: --select matched no changed models. "
+                f"Filter: {', '.join(sorted(unmatched))}",
+                file=sys.stderr,
+            )
 
     # Filter ignored models from config
     if config.ignore_models:
@@ -656,12 +664,27 @@ def _do_run(args: argparse.Namespace) -> int:
     _log(f"Compile command: {compile_command}")
 
     # 1. Check for uncommitted changes
-    git_status = subprocess.run(
-        ["git", "status", "--porcelain"],
-        capture_output=True,
-        text=True,
-        cwd=str(project_dir),
-    )
+    try:
+        git_status = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            cwd=str(project_dir),
+        )
+    except FileNotFoundError:
+        print(
+            "Error: git not found. The 'run' command requires git to manage baseline snapshots.\n"
+            "Install git or use the manual workflow: dbt compile → dbt-plan snapshot → dbt-plan check",
+            file=sys.stderr,
+        )
+        return 2
+    if git_status.returncode != 0:
+        print(
+            "Error: not a git repository. The 'run' command uses git stash for baseline.\n"
+            "Use the manual workflow instead: dbt compile → dbt-plan snapshot → dbt-plan check",
+            file=sys.stderr,
+        )
+        return 2
     has_changes = bool(git_status.stdout.strip())
 
     # 2. Stash uncommitted changes (we need clean state for baseline)
