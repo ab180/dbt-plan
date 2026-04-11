@@ -160,9 +160,11 @@ def format_github(result: CheckResult) -> str:
 
 def format_json(result: CheckResult) -> str:
     """Format result as JSON for programmatic consumption."""
-    models = []
+    from typing import Any
+
+    models: list[dict[str, Any]] = []
     for pred in result.predictions:
-        model = {
+        model: dict[str, Any] = {
             "model_name": pred.model_name,
             "materialization": pred.materialization,
             "on_schema_change": pred.on_schema_change,

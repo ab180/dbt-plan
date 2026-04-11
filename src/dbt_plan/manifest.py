@@ -115,8 +115,8 @@ def find_downstream(
         Sorted list of downstream node_ids (excluding starting node).
     """
     visited = {node_id}
-    queue = deque()
-    result = []
+    queue: deque[str] = deque()
+    result: list[str] = []
 
     for child in child_map.get(node_id, []):
         if child not in visited:
@@ -155,7 +155,7 @@ def find_downstream_batch(
         if nid in cache:
             return cache[nid]
         visited = {nid}
-        queue = deque()
+        queue: deque[str] = deque()
         result: set[str] = set()
 
         for child in child_map.get(nid, []):
