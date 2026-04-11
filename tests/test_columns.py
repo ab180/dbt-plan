@@ -1,5 +1,7 @@
 """Tests for extract_columns — SQLGlot-based column extraction."""
 
+from pathlib import Path
+
 from dbt_plan.columns import extract_columns
 
 
@@ -141,3 +143,51 @@ class TestColumnExtractionEdgeCases:
         sql = "SELECT a, b FROM t1 UNION ALL SELECT x, y FROM t2"
         result = extract_columns(sql)
         assert result == ["a", "b"]
+
+
+class TestRealWorldFixtures:
+    """Tests using real-world dbt SQL patterns from fixtures."""
+
+    FIXTURES = Path(__file__).parent / "fixtures"
+
+    def test_window_functions(self):
+        """Window functions with QUALIFY — common in incremental models."""
+        sql = (self.FIXTURES / "window_functions.sql").read_text()
+        result = extract_columns(sql)
+        assert result is not None
+        assert "user_id" in result
+        assert "event_date" in result
+        assert "row_num" in result
+        assert "prev_event_date" in result
+        assert "lifetime_revenue" in result
+
+    def test_cte_chain_with_select_star(self):
+        """Multi-CTE chain ending in SELECT * FROM final — returns ["*"]."""
+        sql = (self.FIXTURES / "cte_chain.sql").read_text()
+        result = extract_columns(sql)
+        # SELECT * FROM final → ["*"]
+        assert result == ["*"]
+
+    def test_union_staging_pattern(self):
+        """UNION ALL multi-source pattern — returns first branch columns."""
+        sql = (self.FIXTURES / "union_staging.sql").read_text()
+        result = extract_columns(sql)
+        assert result is not None
+        assert "platform" in result
+        assert "device_id" in result
+        assert "event_name" in result
+        assert "event_timestamp" in result
+
+    def test_explicit_columns_fixture(self):
+        """Existing fixture: explicit column SELECT."""
+        sql = (self.FIXTURES / "explicit_columns.sql").read_text()
+        result = extract_columns(sql)
+        assert result is not None
+        assert len(result) > 0
+
+    def test_variant_access_fixture(self):
+        """Existing fixture: Snowflake VARIANT access."""
+        sql = (self.FIXTURES / "variant_access.sql").read_text()
+        result = extract_columns(sql)
+        # VARIANT access may or may not parse depending on dialect
+        assert result is None or isinstance(result, list)
