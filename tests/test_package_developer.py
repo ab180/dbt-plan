@@ -22,7 +22,9 @@ from dbt_plan.predictor import Safety, analyze_cascade_impacts, predict_ddl
 # ---------------------------------------------------------------------------
 
 
-def _make_manifest(nodes: dict, metadata: dict | None = None, child_map: dict | None = None) -> dict:
+def _make_manifest(
+    nodes: dict, metadata: dict | None = None, child_map: dict | None = None
+) -> dict:
     """Build a minimal manifest dict."""
     return {
         "nodes": nodes,
@@ -68,7 +70,9 @@ class TestPackageEphemeralUpgrade:
     def _manifest(self, *, include_packages: bool) -> dict:
         """Build manifest with root + package ephemeral model."""
         nid_pivot, node_pivot = _model_node("my_pkg", "utils_pivot", "ephemeral")
-        nid_root, node_root = _model_node("myproject", "fct_sales", "incremental", "sync_all_columns")
+        nid_root, node_root = _model_node(
+            "myproject", "fct_sales", "incremental", "sync_all_columns"
+        )
         return _make_manifest(
             nodes={nid_pivot: node_pivot, nid_root: node_root},
             metadata={"project_name": "myproject"},
@@ -158,7 +162,10 @@ class TestUnchangedPackageDependency:
             nodes={
                 "model.myproject.fct_events": {
                     "name": "fct_events",
-                    "config": {"materialized": "incremental", "on_schema_change": "sync_all_columns"},
+                    "config": {
+                        "materialized": "incremental",
+                        "on_schema_change": "sync_all_columns",
+                    },
                 },
                 "model.dbt_date.pkg_date_spine": {
                     "name": "pkg_date_spine",

@@ -229,8 +229,7 @@ class TestConfigExceptionHandling:
     def test_invalid_yaml_values_silently_ignored(self, tmp_path):
         """Invalid values don't crash — just ignored."""
         (tmp_path / ".dbt-plan.yml").write_text(
-            "warning_exit_code: not_a_number\n"
-            "format: invalid_format\n"
+            "warning_exit_code: not_a_number\nformat: invalid_format\n"
         )
         config = Config.load(tmp_path)
         assert config.warning_exit_code == 2  # default
@@ -462,7 +461,9 @@ class TestCliRunExceptionHandling:
         from dbt_plan.cli import _do_run
 
         # Create config so compile_command resolves
-        (tmp_path / ".dbt-plan.yml").write_text("compile_command: nonexistent_binary_xyz compile\n")
+        (tmp_path / ".dbt-plan.yml").write_text(
+            "compile_command: nonexistent_binary_xyz compile\n"
+        )
 
         args = argparse.Namespace(
             project_dir=str(tmp_path),
@@ -622,9 +623,7 @@ class TestPredictorCascadeExceptionHandling:
         )
         assert len(updated) == 1
         # No broken_ref because the file couldn't be decoded
-        broken_refs = [
-            imp for imp in updated[0].downstream_impacts if imp.risk == "broken_ref"
-        ]
+        broken_refs = [imp for imp in updated[0].downstream_impacts if imp.risk == "broken_ref"]
         assert len(broken_refs) == 0
 
     def test_cascade_with_readable_downstream_sql(self, tmp_path):
@@ -678,9 +677,7 @@ class TestPredictorCascadeExceptionHandling:
             base_node_index={},
             compiled_sql_index=compiled_sql_index,
         )
-        broken_refs = [
-            imp for imp in updated[0].downstream_impacts if imp.risk == "broken_ref"
-        ]
+        broken_refs = [imp for imp in updated[0].downstream_impacts if imp.risk == "broken_ref"]
         assert len(broken_refs) == 1
         assert "removed_col" in broken_refs[0].reason
 

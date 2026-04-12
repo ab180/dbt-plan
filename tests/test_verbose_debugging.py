@@ -105,12 +105,14 @@ def _manifest_with_nodes(nodes: dict, *, child_map: dict | None = None):
 
 def _destructive_scenario(tmp_path):
     """Create a DESTRUCTIVE scenario: incremental+sync_all_columns with dropped column."""
-    manifest = _manifest_with_nodes({
-        "int_unified": {
-            "materialization": "incremental",
-            "on_schema_change": "sync_all_columns",
-        },
-    })
+    manifest = _manifest_with_nodes(
+        {
+            "int_unified": {
+                "materialization": "incremental",
+                "on_schema_change": "sync_all_columns",
+            },
+        }
+    )
     project_dir = _make_project(
         tmp_path,
         models_sql={"int_unified": "SELECT user_id, new_col FROM src"},
@@ -251,15 +253,17 @@ class TestVerboseIgnoredModels:
 
     def test_ignored_models_reported(self, tmp_path, capsys):
         """When a model is in ignore_models, verbose shows it was ignored."""
-        manifest = _manifest_with_nodes({
-            "int_unified": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-            },
-            "scratch_temp": {
-                "materialization": "table",
-            },
-        })
+        manifest = _manifest_with_nodes(
+            {
+                "int_unified": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+                "scratch_temp": {
+                    "materialization": "table",
+                },
+            }
+        )
         project_dir = _make_project(
             tmp_path,
             models_sql={
@@ -292,11 +296,13 @@ class TestVerboseSkippedModels:
 
     def test_skip_model_not_in_manifest(self, tmp_path, capsys):
         """Model changed on disk but not in manifest -> verbose shows SKIP."""
-        manifest = _manifest_with_nodes({
-            "known_model": {
-                "materialization": "table",
-            },
-        })
+        manifest = _manifest_with_nodes(
+            {
+                "known_model": {
+                    "materialization": "table",
+                },
+            }
+        )
         project_dir = _make_project(
             tmp_path,
             models_sql={
@@ -328,20 +334,24 @@ class TestVerboseSelectStarFallback:
 
     def test_base_cols_fallback_from_manifest(self, tmp_path, capsys):
         """SELECT * in base with manifest columns -> verbose shows fallback."""
-        manifest = _manifest_with_nodes({
-            "star_model": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-                "columns": {"user_id": {}, "event_name": {}, "created_at": {}},
-            },
-        })
-        base_manifest = _manifest_with_nodes({
-            "star_model": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-                "columns": {"user_id": {}, "event_name": {}},
-            },
-        })
+        manifest = _manifest_with_nodes(
+            {
+                "star_model": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                    "columns": {"user_id": {}, "event_name": {}, "created_at": {}},
+                },
+            }
+        )
+        base_manifest = _manifest_with_nodes(
+            {
+                "star_model": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                    "columns": {"user_id": {}, "event_name": {}},
+                },
+            }
+        )
         project_dir = _make_project(
             tmp_path,
             models_sql={"star_model": "SELECT user_id, event_name, created_at FROM src"},
@@ -358,20 +368,24 @@ class TestVerboseSelectStarFallback:
 
     def test_current_cols_fallback_from_manifest(self, tmp_path, capsys):
         """SELECT * in current with manifest columns -> verbose shows fallback."""
-        manifest = _manifest_with_nodes({
-            "star_model": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-                "columns": {"user_id": {}, "event_name": {}, "created_at": {}},
-            },
-        })
-        base_manifest = _manifest_with_nodes({
-            "star_model": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-                "columns": {"user_id": {}, "event_name": {}},
-            },
-        })
+        manifest = _manifest_with_nodes(
+            {
+                "star_model": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                    "columns": {"user_id": {}, "event_name": {}, "created_at": {}},
+                },
+            }
+        )
+        base_manifest = _manifest_with_nodes(
+            {
+                "star_model": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                    "columns": {"user_id": {}, "event_name": {}},
+                },
+            }
+        )
         project_dir = _make_project(
             tmp_path,
             models_sql={"star_model": "SELECT * FROM src"},
@@ -538,9 +552,11 @@ class TestVerboseEdgeCases:
 
     def test_verbose_with_no_changes(self, tmp_path, capsys):
         """Verbose with no model changes still shows config info."""
-        manifest = _manifest_with_nodes({
-            "stable_model": {"materialization": "table"},
-        })
+        manifest = _manifest_with_nodes(
+            {
+                "stable_model": {"materialization": "table"},
+            }
+        )
         project_dir = _make_project(
             tmp_path,
             models_sql={"stable_model": "SELECT id FROM src"},
@@ -561,9 +577,11 @@ class TestVerboseEdgeCases:
 
     def test_verbose_with_added_model(self, tmp_path, capsys):
         """Verbose shows ADDED for new models."""
-        manifest = _manifest_with_nodes({
-            "new_model": {"materialization": "table"},
-        })
+        manifest = _manifest_with_nodes(
+            {
+                "new_model": {"materialization": "table"},
+            }
+        )
         project_dir = _make_project(
             tmp_path,
             models_sql={"new_model": "SELECT id, name FROM src"},
@@ -580,12 +598,16 @@ class TestVerboseEdgeCases:
 
     def test_verbose_with_removed_model(self, tmp_path, capsys):
         """Verbose shows REMOVED for deleted models."""
-        manifest = _manifest_with_nodes({
-            "old_model": {"materialization": "table"},
-        })
-        base_manifest = _manifest_with_nodes({
-            "old_model": {"materialization": "table"},
-        })
+        manifest = _manifest_with_nodes(
+            {
+                "old_model": {"materialization": "table"},
+            }
+        )
+        base_manifest = _manifest_with_nodes(
+            {
+                "old_model": {"materialization": "table"},
+            }
+        )
         project_dir = _make_project(
             tmp_path,
             models_sql={},
@@ -602,12 +624,14 @@ class TestVerboseEdgeCases:
 
     def test_verbose_base_manifest_indexed(self, tmp_path, capsys):
         """When base manifest exists, verbose shows its indexed count."""
-        manifest = _manifest_with_nodes({
-            "int_unified": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-            },
-        })
+        manifest = _manifest_with_nodes(
+            {
+                "int_unified": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+            }
+        )
         project_dir = _make_project(
             tmp_path,
             models_sql={"int_unified": "SELECT user_id, new_col FROM src"},
@@ -634,10 +658,12 @@ class TestVerboseEdgeCases:
 
     def test_verbose_select_filter(self, tmp_path, capsys):
         """Verbose shows selected model count when --select is used."""
-        manifest = _manifest_with_nodes({
-            "model_a": {"materialization": "table"},
-            "model_b": {"materialization": "table"},
-        })
+        manifest = _manifest_with_nodes(
+            {
+                "model_a": {"materialization": "table"},
+                "model_b": {"materialization": "table"},
+            }
+        )
         project_dir = _make_project(
             tmp_path,
             models_sql={

@@ -56,7 +56,7 @@ def build_node_index(manifest: dict, *, include_packages: bool = False) -> dict[
             from collections import Counter
 
             pkg_counts: Counter[str] = Counter()
-            for node_id in (manifest.get("nodes") or {}):
+            for node_id in manifest.get("nodes") or {}:
                 if node_id.startswith("model."):
                     pkg = node_id.split(".")[1]
                     pkg_counts[pkg] += 1

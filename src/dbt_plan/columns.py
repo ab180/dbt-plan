@@ -42,9 +42,7 @@ def extract_columns(sql: str, *, dialect: str = "snowflake") -> list[str] | None
             except_cols = expr.args.get("except_")
             if except_cols:
                 excluded = sorted(
-                    col.output_name.lower()
-                    for col in except_cols
-                    if col.output_name
+                    col.output_name.lower() for col in except_cols if col.output_name
                 )
                 if excluded:
                     return [f"* except({', '.join(excluded)})"]

@@ -334,6 +334,7 @@ CHILD_MAP = {
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _build_manifest(
     node_overrides: dict | None = None,
     child_map_overrides: dict | None = None,
@@ -453,6 +454,7 @@ def _find_model(result: dict, model_name: str) -> dict | None:
 # Scenario A — Remove a customer field (cascade impact)
 # ---------------------------------------------------------------------------
 
+
 class TestScenarioA_RemoveCustomerField:
     """Remove customer_name from int_order_enriched.
 
@@ -533,14 +535,10 @@ LEFT JOIN item_counts ic ON o.order_id = ic.order_id
         #    (its SQL didn't change) and should not have a broken_ref
         #    because it doesn't reference customer_name
         fdr = _find_model(result, "fct_daily_revenue")
-        assert fdr is None, (
-            "fct_daily_revenue should NOT appear as a changed model"
-        )
+        assert fdr is None, "fct_daily_revenue should NOT appear as a changed model"
 
         # If fct_daily_revenue appears in cascade impacts, it should not be broken_ref
-        fdr_impacts = [
-            i for i in impacts if i["model_name"] == "fct_daily_revenue"
-        ]
+        fdr_impacts = [i for i in impacts if i["model_name"] == "fct_daily_revenue"]
         fdr_broken = [i for i in fdr_impacts if i["risk"] == "broken_ref"]
         assert len(fdr_broken) == 0, (
             "fct_daily_revenue should NOT have broken_ref (doesn't reference customer_name)"
@@ -553,6 +551,7 @@ LEFT JOIN item_counts ic ON o.order_id = ic.order_id
 # ---------------------------------------------------------------------------
 # Scenario B — Add a new metric to fct_daily_revenue
 # ---------------------------------------------------------------------------
+
 
 class TestScenarioB_AddNewMetric:
     """Add avg_order_value to fct_daily_revenue.
@@ -615,6 +614,7 @@ GROUP BY order_date
 # Scenario C — Refactor staging model column rename
 # ---------------------------------------------------------------------------
 
+
 class TestScenarioC_RefactorStagingColumnRename:
     """Rename total_amount -> order_total in stg_orders.
 
@@ -676,9 +676,7 @@ FROM raw.orders
         # The cascade regex also catches total_amount references in deeper
         # downstream models (int_customer_metrics, fct_daily_revenue, etc.)
         # because their compiled SQL contains the literal text "total_amount"
-        assert len(broken_refs) >= 1, (
-            "At least int_order_enriched should have broken_ref"
-        )
+        assert len(broken_refs) >= 1, "At least int_order_enriched should have broken_ref"
 
         # With a broken_ref cascade, safety should be escalated to DESTRUCTIVE
         assert stg["safety"] == "destructive"
@@ -690,6 +688,7 @@ FROM raw.orders
 # ---------------------------------------------------------------------------
 # Scenario D — Safe change: add column to table model
 # ---------------------------------------------------------------------------
+
 
 class TestScenarioD_SafeAddColumnToTable:
     """Add is_active to dim_products (table materialization).
@@ -744,6 +743,7 @@ FROM stg_products
 # Bonus: Verify baseline has 15 models and no changes yields empty result
 # ---------------------------------------------------------------------------
 
+
 class TestBaselineNoChanges:
     """When no models change, dbt-plan should report no changes."""
 
@@ -768,7 +768,5 @@ class TestBaselineNoChanges:
         assert len(MODEL_CONFIGS) == 15
 
         manifest = _build_manifest()
-        model_nodes = [
-            nid for nid in manifest["nodes"] if nid.startswith("model.")
-        ]
+        model_nodes = [nid for nid in manifest["nodes"] if nid.startswith("model.")]
         assert len(model_nodes) == 15

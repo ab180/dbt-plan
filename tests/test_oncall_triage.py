@@ -19,6 +19,7 @@ from unittest.mock import patch
 # Shared helpers (same pattern as test_user_journeys.py)
 # ---------------------------------------------------------------------------
 
+
 def _build_manifest(nodes: dict, child_map: dict | None = None, project: str = "test") -> dict:
     manifest_nodes = {}
     auto_child_map = {}
@@ -112,7 +113,11 @@ def _run_check(
     buf = StringIO()
     err_buf = StringIO()
     env_patch = env or {}
-    with patch("sys.stdout", buf), patch("sys.stderr", err_buf), patch.dict(os.environ, env_patch, clear=False):
+    with (
+        patch("sys.stdout", buf),
+        patch("sys.stderr", err_buf),
+        patch.dict(os.environ, env_patch, clear=False),
+    ):
         exit_code = _do_check(args)
     return exit_code, buf.getvalue(), err_buf.getvalue()
 
@@ -120,6 +125,7 @@ def _run_check(
 # ===========================================================================
 # Scenario 1: "CI failed, what broke?"
 # ===========================================================================
+
 
 class TestScenario1CIFailedWhatBroke:
     """On-call gets paged: CI failed with exit code 1.
@@ -131,12 +137,14 @@ class TestScenario1CIFailedWhatBroke:
         base_sql = "SELECT user_id, device_type, revenue, created_at FROM raw_events"
         current_sql = "SELECT user_id, created_at FROM raw_events"  # dropped device_type, revenue
 
-        manifest = _build_manifest({
-            "fct_events": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-            },
-        })
+        manifest = _build_manifest(
+            {
+                "fct_events": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+            }
+        )
 
         return _setup_project(
             tmp_path,
@@ -222,6 +230,7 @@ class TestScenario1CIFailedWhatBroke:
 # Scenario 2: "Is this safe to override?"
 # ===========================================================================
 
+
 class TestScenario2SafeToOverride:
     """On-call wants to programmatically decide if a destructive change is on a
     known-safe model (e.g., scratch tables, temp staging).
@@ -234,12 +243,14 @@ class TestScenario2SafeToOverride:
         base_sql = "SELECT a, b, c FROM src"
         current_sql = "SELECT a FROM src"
 
-        manifest = _build_manifest({
-            "scratch_temp": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-            },
-        })
+        manifest = _build_manifest(
+            {
+                "scratch_temp": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+            }
+        )
 
         project_dir = _setup_project(
             tmp_path,
@@ -254,8 +265,15 @@ class TestScenario2SafeToOverride:
         model = data["models"][0]
 
         # All fields a CI script needs for auto-approval
-        required_fields = {"model_name", "materialization", "on_schema_change",
-                           "columns_removed", "columns_added", "safety", "operations"}
+        required_fields = {
+            "model_name",
+            "materialization",
+            "on_schema_change",
+            "columns_removed",
+            "columns_added",
+            "safety",
+            "operations",
+        }
         assert required_fields.issubset(set(model.keys()))
 
     def test_ci_script_can_auto_approve_known_safe_models(self, tmp_path):
@@ -265,16 +283,18 @@ class TestScenario2SafeToOverride:
         base_sql = "SELECT a, b, c FROM src"
         current_sql = "SELECT a FROM src"
 
-        manifest = _build_manifest({
-            "scratch_temp_1": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-            },
-            "scratch_temp_2": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-            },
-        })
+        manifest = _build_manifest(
+            {
+                "scratch_temp_1": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+                "scratch_temp_2": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+            }
+        )
 
         project_dir = _setup_project(
             tmp_path,
@@ -291,27 +311,30 @@ class TestScenario2SafeToOverride:
 
         # Simulate CI auto-approval logic
         destructive_models = [
-            m["model_name"] for m in data["models"]
-            if m["safety"] == "destructive"
+            m["model_name"] for m in data["models"] if m["safety"] == "destructive"
         ]
         all_safe = all(m in known_safe for m in destructive_models)
-        assert all_safe, "CI script should be able to determine all destructive models are known-safe"
+        assert all_safe, (
+            "CI script should be able to determine all destructive models are known-safe"
+        )
 
     def test_ci_script_blocks_unknown_destructive(self, tmp_path):
         """If a destructive model is NOT in the safe list, CI script blocks."""
         base_sql = "SELECT a, b FROM src"
         current_sql = "SELECT a FROM src"
 
-        manifest = _build_manifest({
-            "scratch_temp": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-            },
-            "fct_revenue": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-            },
-        })
+        manifest = _build_manifest(
+            {
+                "scratch_temp": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+                "fct_revenue": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+            }
+        )
 
         project_dir = _setup_project(
             tmp_path,
@@ -325,8 +348,7 @@ class TestScenario2SafeToOverride:
         known_safe = {"scratch_temp"}
 
         destructive_models = [
-            m["model_name"] for m in data["models"]
-            if m["safety"] == "destructive"
+            m["model_name"] for m in data["models"] if m["safety"] == "destructive"
         ]
         all_safe = all(m in known_safe for m in destructive_models)
         assert not all_safe, "fct_revenue is not in safe list, CI should block"
@@ -336,12 +358,14 @@ class TestScenario2SafeToOverride:
         base_sql = "SELECT user_id, email, phone FROM users"
         current_sql = "SELECT user_id FROM users"
 
-        manifest = _build_manifest({
-            "dim_users": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-            },
-        })
+        manifest = _build_manifest(
+            {
+                "dim_users": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+            }
+        )
 
         project_dir = _setup_project(
             tmp_path,
@@ -365,6 +389,7 @@ class TestScenario2SafeToOverride:
 # Scenario 3: "I want to suppress this known warning"
 # ===========================================================================
 
+
 class TestScenario3SuppressKnownWarning:
     """On-call adds a model to ignore_models in .dbt-plan.yml to suppress
     a known-noisy destructive warning.
@@ -375,12 +400,14 @@ class TestScenario3SuppressKnownWarning:
         base_sql = "SELECT a, b, c FROM src"
         current_sql = "SELECT a FROM src"
 
-        manifest = _build_manifest({
-            "noisy_scratch": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-            },
-        })
+        manifest = _build_manifest(
+            {
+                "noisy_scratch": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+            }
+        )
 
         # Step 1: First run WITHOUT ignore_models -> exit 1
         project_dir = _setup_project(
@@ -406,8 +433,7 @@ class TestScenario3SuppressKnownWarning:
 
         data_2 = json.loads(stdout_2)
         model_names_2 = [m["model_name"] for m in data_2["models"]]
-        assert "noisy_scratch" not in model_names_2, \
-            "Ignored model should not appear in output"
+        assert "noisy_scratch" not in model_names_2, "Ignored model should not appear in output"
 
     def test_ignore_models_mixed_project(self, tmp_path):
         """Ignoring one model doesn't affect other models in the same run."""
@@ -416,16 +442,18 @@ class TestScenario3SuppressKnownWarning:
         base_sql_real = "SELECT x, y FROM other"
         current_sql_real = "SELECT x, y, z FROM other"
 
-        manifest = _build_manifest({
-            "noisy_model": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-            },
-            "real_model": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-            },
-        })
+        manifest = _build_manifest(
+            {
+                "noisy_model": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+                "real_model": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+            }
+        )
 
         project_dir = _setup_project(
             tmp_path,
@@ -450,12 +478,14 @@ class TestScenario3SuppressKnownWarning:
         base_sql = "SELECT a, b FROM src"
         current_sql = "SELECT a FROM src"
 
-        manifest = _build_manifest({
-            "secret_scratch_v2": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-            },
-        })
+        manifest = _build_manifest(
+            {
+                "secret_scratch_v2": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+            }
+        )
 
         project_dir = _setup_project(
             tmp_path,
@@ -466,13 +496,15 @@ class TestScenario3SuppressKnownWarning:
         )
 
         exit_code, stdout, _ = _run_check(project_dir, fmt="text")
-        assert "secret_scratch_v2" not in stdout, \
+        assert "secret_scratch_v2" not in stdout, (
             "Ignored model name should not appear in any part of the output"
+        )
 
 
 # ===========================================================================
 # Scenario 4: "What models are at risk in my project?"
 # ===========================================================================
+
 
 class TestScenario4StatsCommand:
     """On-call runs `dbt-plan stats` to understand the risk profile of the project."""
@@ -482,25 +514,27 @@ class TestScenario4StatsCommand:
         project_dir = tmp_path / "project"
         project_dir.mkdir()
 
-        manifest = _build_manifest({
-            "dim_users": {"materialization": "table"},
-            "dim_products": {"materialization": "table"},
-            "vw_report": {"materialization": "view"},
-            "stg_events": {
-                "materialization": "incremental",
-                "on_schema_change": "fail",
-            },
-            "fct_revenue": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-            },
-            "fct_daily": {
-                "materialization": "incremental",
-                "on_schema_change": "ignore",
-            },
-            "snap_orders": {"materialization": "snapshot"},
-            "eph_helper": {"materialization": "ephemeral"},
-        })
+        manifest = _build_manifest(
+            {
+                "dim_users": {"materialization": "table"},
+                "dim_products": {"materialization": "table"},
+                "vw_report": {"materialization": "view"},
+                "stg_events": {
+                    "materialization": "incremental",
+                    "on_schema_change": "fail",
+                },
+                "fct_revenue": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+                "fct_daily": {
+                    "materialization": "incremental",
+                    "on_schema_change": "ignore",
+                },
+                "snap_orders": {"materialization": "snapshot"},
+                "eph_helper": {"materialization": "ephemeral"},
+            }
+        )
 
         # Write manifest
         target_dir = project_dir / "target"
@@ -638,6 +672,7 @@ class TestScenario4StatsCommand:
 # Scenario 5: "Exit code 2 -- is this a warning or an error?"
 # ===========================================================================
 
+
 class TestScenario5ExitCode2Disambiguation:
     """Exit code 2 can come from parse failure OR WARNING prediction.
     On-call needs to distinguish them.
@@ -651,12 +686,14 @@ class TestScenario5ExitCode2Disambiguation:
         base_sql = "THIS IS NOT VALID SQL AT ALL ;;;"
         current_sql = "ALSO NOT VALID SQL %%% !!!"
 
-        manifest = _build_manifest({
-            "broken_model": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-            },
-        })
+        manifest = _build_manifest(
+            {
+                "broken_model": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+            }
+        )
 
         project_dir = _setup_project(
             tmp_path,
@@ -669,8 +706,9 @@ class TestScenario5ExitCode2Disambiguation:
         assert exit_code == 2, "Parse failure should produce exit code 2"
 
         # The text output should say "Could not extract columns"
-        assert "Could not extract columns" in stdout, \
+        assert "Could not extract columns" in stdout, (
             "On-call needs to see which models had parse failures"
+        )
         assert "broken_model" in stdout
 
     def test_warning_prediction_shows_in_stdout(self, tmp_path):
@@ -678,9 +716,11 @@ class TestScenario5ExitCode2Disambiguation:
         base_sql = "SELECT id, status, ts FROM orders"
         current_sql = "SELECT id, status, ts, new_col FROM orders"
 
-        manifest = _build_manifest({
-            "snap_orders": {"materialization": "snapshot"},
-        })
+        manifest = _build_manifest(
+            {
+                "snap_orders": {"materialization": "snapshot"},
+            }
+        )
 
         project_dir = _setup_project(
             tmp_path,
@@ -705,18 +745,23 @@ class TestScenario5ExitCode2Disambiguation:
         snapshot_base = "SELECT id, ts FROM src"
         snapshot_current = "SELECT id, ts, extra FROM src"
 
-        manifest = _build_manifest({
-            "broken_inc": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-            },
-            "snap_model": {"materialization": "snapshot"},
-        })
+        manifest = _build_manifest(
+            {
+                "broken_inc": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+                "snap_model": {"materialization": "snapshot"},
+            }
+        )
 
         project_dir = _setup_project(
             tmp_path,
             base_sqls={"broken_inc": unparseable_sql, "snap_model": snapshot_base},
-            current_sqls={"broken_inc": unparseable_sql + " --modified", "snap_model": snapshot_current},
+            current_sqls={
+                "broken_inc": unparseable_sql + " --modified",
+                "snap_model": snapshot_current,
+            },
             manifest=manifest,
         )
 
@@ -738,12 +783,14 @@ class TestScenario5ExitCode2Disambiguation:
         base_sql = "SELECT a, b FROM src"
         current_sql = "SELECT a, c FROM src"
 
-        manifest = _build_manifest({
-            "strict_model": {
-                "materialization": "incremental",
-                "on_schema_change": "fail",
-            },
-        })
+        manifest = _build_manifest(
+            {
+                "strict_model": {
+                    "materialization": "incremental",
+                    "on_schema_change": "fail",
+                },
+            }
+        )
 
         project_dir = _setup_project(
             tmp_path,
@@ -762,6 +809,7 @@ class TestScenario5ExitCode2Disambiguation:
 # Scenario 6: "warning_exit_code=0 to unblock CI"
 # ===========================================================================
 
+
 class TestScenario6WarningExitCodeOverride:
     """Emergency workaround: set DBT_PLAN_WARNING_EXIT_CODE=0 to turn
     warnings into exit 0, unblocking CI without config file changes.
@@ -772,9 +820,11 @@ class TestScenario6WarningExitCodeOverride:
         base_sql = "SELECT id, status FROM orders"
         current_sql = "SELECT id, status, updated_at FROM orders"
 
-        manifest = _build_manifest({
-            "snap_orders": {"materialization": "snapshot"},
-        })
+        manifest = _build_manifest(
+            {
+                "snap_orders": {"materialization": "snapshot"},
+            }
+        )
 
         return _setup_project(
             tmp_path,
@@ -834,12 +884,14 @@ class TestScenario6WarningExitCodeOverride:
         base_sql = "SELECT a, b FROM src"
         current_sql = "SELECT a FROM src"
 
-        manifest = _build_manifest({
-            "danger_model": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-            },
-        })
+        manifest = _build_manifest(
+            {
+                "danger_model": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+            }
+        )
 
         project_dir = _setup_project(
             tmp_path,
@@ -853,17 +905,20 @@ class TestScenario6WarningExitCodeOverride:
             fmt="text",
             env={"DBT_PLAN_WARNING_EXIT_CODE": "0"},
         )
-        assert exit_code == 1, \
+        assert exit_code == 1, (
             "Destructive changes must ALWAYS be exit 1, regardless of warning_exit_code"
+        )
 
     def test_config_file_override_also_works(self, tmp_path):
         """warning_exit_code can also be set in .dbt-plan.yml."""
         base_sql = "SELECT id, status FROM orders"
         current_sql = "SELECT id, status, updated_at FROM orders"
 
-        manifest = _build_manifest({
-            "snap_orders": {"materialization": "snapshot"},
-        })
+        manifest = _build_manifest(
+            {
+                "snap_orders": {"materialization": "snapshot"},
+            }
+        )
 
         project_dir = _setup_project(
             tmp_path,

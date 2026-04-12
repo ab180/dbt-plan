@@ -12,6 +12,7 @@ from dbt_plan.cli import _do_check, _do_snapshot
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _minimal_manifest(models: dict[str, dict] | None = None, project_name: str = "my_project"):
     """Build a minimal manifest.json dict.
 
@@ -46,7 +47,9 @@ def _snapshot_args(project_dir: Path) -> argparse.Namespace:
     )
 
 
-def _check_args(project_dir: Path, *, fmt: str = "json", no_color: bool = True) -> argparse.Namespace:
+def _check_args(
+    project_dir: Path, *, fmt: str = "json", no_color: bool = True
+) -> argparse.Namespace:
     return argparse.Namespace(
         project_dir=str(project_dir),
         target_dir="target",
@@ -60,7 +63,9 @@ def _check_args(project_dir: Path, *, fmt: str = "json", no_color: bool = True) 
     )
 
 
-def _setup_target(project_dir: Path, models_sql: dict[str, str], manifest: dict, *, subdir: str = ""):
+def _setup_target(
+    project_dir: Path, models_sql: dict[str, str], manifest: dict, *, subdir: str = ""
+):
     """Create target/compiled/{project}/models/[subdir]/*.sql and manifest.json."""
     models_dir = project_dir / "target" / "compiled" / "my_project" / "models"
     if subdir:
@@ -74,6 +79,7 @@ def _setup_target(project_dir: Path, models_sql: dict[str, str], manifest: dict,
 # ---------------------------------------------------------------------------
 # 1. Legacy snapshot format
 # ---------------------------------------------------------------------------
+
 
 class TestLegacySnapshotFormat:
     """_do_check backward-compat: old snapshots stored SQL directly in base_dir (no compiled/ subdir)."""
@@ -133,6 +139,7 @@ class TestLegacySnapshotFormat:
 # 2. Snapshot overwrites previous snapshot
 # ---------------------------------------------------------------------------
 
+
 class TestSnapshotOverwrite:
     """Second snapshot should cleanly replace the first; stale files must not persist."""
 
@@ -152,6 +159,7 @@ class TestSnapshotOverwrite:
         # Now change target to only have model_b
         # Remove old compiled files and recreate
         import shutil
+
         shutil.rmtree(project_dir / "target" / "compiled")
         manifest2 = _minimal_manifest({"model_b": {"materialized": "table"}})
         _setup_target(project_dir, {"model_b": "SELECT 2 AS b"}, manifest2)
@@ -177,6 +185,7 @@ class TestSnapshotOverwrite:
 
         # Second snapshot with different manifest
         import shutil
+
         shutil.rmtree(project_dir / "target" / "compiled")
         manifest2 = _minimal_manifest({"new_model": {"materialized": "table"}})
         _setup_target(project_dir, {"new_model": "SELECT 2"}, manifest2)
@@ -190,6 +199,7 @@ class TestSnapshotOverwrite:
 # ---------------------------------------------------------------------------
 # 3. Empty compiled directory
 # ---------------------------------------------------------------------------
+
 
 class TestEmptyCompiledDir:
     """target/compiled/project/models/ exists but has no .sql files."""
@@ -241,6 +251,7 @@ class TestEmptyCompiledDir:
 # 4. Subdirectory models
 # ---------------------------------------------------------------------------
 
+
 class TestSubdirectoryModels:
     """Models nested in subdirs: target/compiled/project/models/staging/raw/model.sql."""
 
@@ -251,7 +262,9 @@ class TestSubdirectoryModels:
         manifest = _minimal_manifest({"deep_model": {"materialized": "table"}})
 
         # Place model in a deep subdirectory
-        deep_dir = project_dir / "target" / "compiled" / "my_project" / "models" / "staging" / "raw"
+        deep_dir = (
+            project_dir / "target" / "compiled" / "my_project" / "models" / "staging" / "raw"
+        )
         deep_dir.mkdir(parents=True)
         (deep_dir / "deep_model.sql").write_text("SELECT id FROM source")
         (project_dir / "target" / "manifest.json").write_text(json.dumps(manifest))
@@ -272,7 +285,9 @@ class TestSubdirectoryModels:
         manifest = _minimal_manifest({"deep_model": {"materialized": "table"}})
 
         # Current: model in subdirectory with updated SQL
-        deep_dir = project_dir / "target" / "compiled" / "my_project" / "models" / "staging" / "raw"
+        deep_dir = (
+            project_dir / "target" / "compiled" / "my_project" / "models" / "staging" / "raw"
+        )
         deep_dir.mkdir(parents=True)
         (deep_dir / "deep_model.sql").write_text("SELECT id, name FROM source")
         (project_dir / "target" / "manifest.json").write_text(json.dumps(manifest))
@@ -295,6 +310,7 @@ class TestSubdirectoryModels:
 # ---------------------------------------------------------------------------
 # 5. Manifest missing during snapshot
 # ---------------------------------------------------------------------------
+
 
 class TestManifestMissingDuringSnapshot:
     """Snapshot warns on stderr but still saves compiled SQL when manifest.json is absent."""
@@ -330,6 +346,7 @@ class TestManifestMissingDuringSnapshot:
 # 6. Check with stale snapshot
 # ---------------------------------------------------------------------------
 
+
 class TestStaleSnapshot:
     """Snapshot from old version: completely different models in current.
 
@@ -341,25 +358,35 @@ class TestStaleSnapshot:
         project_dir.mkdir()
 
         # Base snapshot has old_model_a and old_model_b
-        base_manifest = _minimal_manifest({
-            "old_model_a": {"materialized": "table"},
-            "old_model_b": {"materialized": "view"},
-        })
+        base_manifest = _minimal_manifest(
+            {
+                "old_model_a": {"materialized": "table"},
+                "old_model_b": {"materialized": "view"},
+            }
+        )
         base_compiled = project_dir / ".dbt-plan" / "base" / "compiled"
         base_compiled.mkdir(parents=True)
         (base_compiled / "old_model_a.sql").write_text("SELECT 1")
         (base_compiled / "old_model_b.sql").write_text("SELECT 2")
-        (project_dir / ".dbt-plan" / "base" / "manifest.json").write_text(json.dumps(base_manifest))
+        (project_dir / ".dbt-plan" / "base" / "manifest.json").write_text(
+            json.dumps(base_manifest)
+        )
 
         # Current has completely different models
-        current_manifest = _minimal_manifest({
-            "new_model_x": {"materialized": "table"},
-            "new_model_y": {"materialized": "incremental", "on_schema_change": "fail"},
-        })
-        _setup_target(project_dir, {
-            "new_model_x": "SELECT 10",
-            "new_model_y": "SELECT 20",
-        }, current_manifest)
+        current_manifest = _minimal_manifest(
+            {
+                "new_model_x": {"materialized": "table"},
+                "new_model_y": {"materialized": "incremental", "on_schema_change": "fail"},
+            }
+        )
+        _setup_target(
+            project_dir,
+            {
+                "new_model_x": "SELECT 10",
+                "new_model_y": "SELECT 20",
+            },
+            current_manifest,
+        )
 
         exit_code = _do_check(_check_args(project_dir))
         captured = capsys.readouterr()
@@ -391,6 +418,7 @@ class TestStaleSnapshot:
 # 7. Check with identical files (no changes)
 # ---------------------------------------------------------------------------
 
+
 class TestIdenticalFiles:
     """After snapshot, no changes made. Check should return exit 0, 'no changes'."""
 
@@ -398,10 +426,15 @@ class TestIdenticalFiles:
         project_dir = tmp_path / "project"
         project_dir.mkdir()
 
-        manifest = _minimal_manifest({
-            "dim_user": {"materialized": "table"},
-            "fct_events": {"materialized": "incremental", "on_schema_change": "sync_all_columns"},
-        })
+        manifest = _minimal_manifest(
+            {
+                "dim_user": {"materialized": "table"},
+                "fct_events": {
+                    "materialized": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+            }
+        )
         sql_files = {
             "dim_user": "SELECT id, name FROM users",
             "fct_events": "SELECT event_id, user_id, ts FROM events",
@@ -445,6 +478,7 @@ class TestIdenticalFiles:
 # 8. Model renamed
 # ---------------------------------------------------------------------------
 
+
 class TestModelRenamed:
     """dim_device.sql -> dim_devices.sql: should show one 'removed' and one 'added'."""
 
@@ -457,13 +491,19 @@ class TestModelRenamed:
         base_compiled = project_dir / ".dbt-plan" / "base" / "compiled"
         base_compiled.mkdir(parents=True)
         (base_compiled / "dim_device.sql").write_text("SELECT id, name FROM devices")
-        (project_dir / ".dbt-plan" / "base" / "manifest.json").write_text(json.dumps(base_manifest))
+        (project_dir / ".dbt-plan" / "base" / "manifest.json").write_text(
+            json.dumps(base_manifest)
+        )
 
         # Current has dim_devices (renamed)
         current_manifest = _minimal_manifest({"dim_devices": {"materialized": "table"}})
-        _setup_target(project_dir, {
-            "dim_devices": "SELECT id, name FROM devices",
-        }, current_manifest)
+        _setup_target(
+            project_dir,
+            {
+                "dim_devices": "SELECT id, name FROM devices",
+            },
+            current_manifest,
+        )
 
         exit_code = _do_check(_check_args(project_dir))
         captured = capsys.readouterr()
@@ -491,7 +531,9 @@ class TestModelRenamed:
         base_compiled = project_dir / ".dbt-plan" / "base" / "compiled"
         base_compiled.mkdir(parents=True)
         (base_compiled / "dim_device.sql").write_text("SELECT 1")
-        (project_dir / ".dbt-plan" / "base" / "manifest.json").write_text(json.dumps(base_manifest))
+        (project_dir / ".dbt-plan" / "base" / "manifest.json").write_text(
+            json.dumps(base_manifest)
+        )
 
         current_manifest = _minimal_manifest({"dim_devices": {"materialized": "view"}})
         _setup_target(project_dir, {"dim_devices": "SELECT 1"}, current_manifest)

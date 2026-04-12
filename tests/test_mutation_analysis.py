@@ -486,15 +486,23 @@ class TestMutation11_ModifiedToAddedStatus:
         base_cols = extract_columns("SELECT a, b, c FROM t")
         curr_cols = extract_columns("SELECT a FROM t")
         pred = predict_ddl(
-            "m", "incremental", "sync_all_columns",
-            base_cols, curr_cols, status=diffs[0].status,
+            "m",
+            "incremental",
+            "sync_all_columns",
+            base_cols,
+            curr_cols,
+            status=diffs[0].status,
         )
         assert pred.safety == Safety.DESTRUCTIVE
 
         # If mutation changed to "added" → would be SAFE (dangerous!)
         pred_mutated = predict_ddl(
-            "m", "incremental", "sync_all_columns",
-            base_cols, curr_cols, status="added",
+            "m",
+            "incremental",
+            "sync_all_columns",
+            base_cols,
+            curr_cols,
+            status="added",
         )
         assert pred_mutated.safety == Safety.SAFE  # This is what the bug would cause
 

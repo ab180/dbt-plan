@@ -85,10 +85,7 @@ class TestColumnReorderPlusAdd:
         # Should detect ADD COLUMN c (set diff), not reorder
         assert result.columns_added == ["c"]
         assert result.columns_removed == []
-        assert any(
-            op.operation == "ADD COLUMN" and op.column == "c"
-            for op in result.operations
-        )
+        assert any(op.operation == "ADD COLUMN" and op.column == "c" for op in result.operations)
         # Should NOT be flagged as COLUMNS REORDERED
         assert not any(op.operation == "COLUMNS REORDERED" for op in result.operations)
         # ADD only → SAFE
@@ -108,10 +105,7 @@ class TestColumnReorderPlusRemove:
             current_columns=["c", "a"],
         )
         assert result.columns_removed == ["b"]
-        assert any(
-            op.operation == "DROP COLUMN" and op.column == "b"
-            for op in result.operations
-        )
+        assert any(op.operation == "DROP COLUMN" and op.column == "b" for op in result.operations)
         assert result.safety == Safety.DESTRUCTIVE
 
 
@@ -155,9 +149,7 @@ class TestDuplicateColumns:
             current_columns=["a", "b"],
         )
         assert result.safety == Safety.WARNING
-        assert any(
-            "duplicate" in op.operation.lower() for op in result.operations
-        )
+        assert any("duplicate" in op.operation.lower() for op in result.operations)
 
     def test_current_has_duplicates(self):
         """Current columns with duplicates → WARNING."""
@@ -169,9 +161,7 @@ class TestDuplicateColumns:
             current_columns=["a", "a", "b"],
         )
         assert result.safety == Safety.WARNING
-        assert any(
-            "duplicate" in op.operation.lower() for op in result.operations
-        )
+        assert any("duplicate" in op.operation.lower() for op in result.operations)
 
     def test_both_have_same_duplicates(self):
         """Both sides have same duplicates → still WARNING."""

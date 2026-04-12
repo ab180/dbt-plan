@@ -16,6 +16,7 @@ from dbt_plan.diff import diff_compiled_dirs
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_sql(path, content="SELECT 1"):
     """Create a .sql file, creating parent directories as needed."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -25,6 +26,7 @@ def _make_sql(path, content="SELECT 1"):
 # ---------------------------------------------------------------------------
 # Scenario 1: Standard dbt CLI layout (baseline)
 # ---------------------------------------------------------------------------
+
 
 class TestStandardCliLayout:
     """target/compiled/{project_name}/models/ — the most common layout."""
@@ -50,6 +52,7 @@ class TestStandardCliLayout:
 # ---------------------------------------------------------------------------
 # Scenario 2: Flat layout (some dbt versions)
 # ---------------------------------------------------------------------------
+
 
 class TestFlatLayout:
     """target/compiled/models/ — no project subdirectory."""
@@ -80,6 +83,7 @@ class TestFlatLayout:
 # ---------------------------------------------------------------------------
 # Scenario 3: Nested model directories
 # ---------------------------------------------------------------------------
+
 
 class TestNestedModelDirectories:
     """Multiple subdirectories under models/ — all found by rglob."""
@@ -121,6 +125,7 @@ class TestNestedModelDirectories:
 # ---------------------------------------------------------------------------
 # Scenario 4: Non-SQL files in compiled dir
 # ---------------------------------------------------------------------------
+
 
 class TestNonSqlFilesFiltered:
     """Only .sql files should be picked up; .py, .csv, .yml are ignored."""
@@ -164,6 +169,7 @@ class TestNonSqlFilesFiltered:
 # Scenario 5: Empty target/compiled/ (no project dirs, no models dir)
 # ---------------------------------------------------------------------------
 
+
 class TestEmptyCompiledDir:
     """Empty or missing compiled/ → _find_compiled_dir returns None."""
 
@@ -191,6 +197,7 @@ class TestEmptyCompiledDir:
 # ---------------------------------------------------------------------------
 # Scenario 6: compiled/ has directories without models/ subdir
 # ---------------------------------------------------------------------------
+
 
 class TestNonModelDirectories:
     """Packages with only macros/ (no models/) should not be picked up."""
@@ -233,6 +240,7 @@ class TestNonModelDirectories:
 # Scenario 7: Very deep nesting
 # ---------------------------------------------------------------------------
 
+
 class TestVeryDeepNesting:
     """Deeply nested model paths — rglob should find them."""
 
@@ -265,6 +273,7 @@ class TestVeryDeepNesting:
 # ---------------------------------------------------------------------------
 # Scenario 8: Model with special characters in path
 # ---------------------------------------------------------------------------
+
 
 class TestSpecialCharactersInPath:
     """Dashes and other characters in directory/file names."""

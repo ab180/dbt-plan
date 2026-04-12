@@ -16,6 +16,7 @@ from dbt_plan.predictor import DDLOperation, DDLPrediction, DownstreamImpact, Sa
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_prediction(
     name: str = "model_a",
     materialization: str = "table",
@@ -46,6 +47,7 @@ def _parse(result: CheckResult) -> dict:
 # ===========================================================================
 # 1. JSON schema stability
 # ===========================================================================
+
 
 class TestJsonSchemaStability:
     """Top-level keys and per-model keys are always present and typed correctly."""
@@ -92,8 +94,13 @@ class TestJsonSchemaStability:
     def test_model_always_has_required_keys(self):
         """Each model object has the 7 mandatory keys."""
         required = {
-            "model_name", "materialization", "on_schema_change",
-            "safety", "operations", "columns_added", "columns_removed",
+            "model_name",
+            "materialization",
+            "on_schema_change",
+            "safety",
+            "operations",
+            "columns_added",
+            "columns_removed",
         }
         result = CheckResult(predictions=[_make_prediction()])
         data = _parse(result)
@@ -145,9 +152,7 @@ class TestJsonSchemaStability:
             risk="broken_ref",
             reason="dropped col",
         )
-        result_yes = CheckResult(
-            predictions=[_make_prediction(downstream_impacts=[impact])]
-        )
+        result_yes = CheckResult(predictions=[_make_prediction(downstream_impacts=[impact])])
         data_yes = _parse(result_yes)
         assert len(data_yes["models"][0]["downstream_impacts"]) == 1
 
@@ -174,6 +179,7 @@ class TestJsonSchemaStability:
 # ===========================================================================
 # 2. Safety value enum
 # ===========================================================================
+
 
 class TestSafetyValueEnum:
     """safety is always a lowercase string from a fixed set."""
@@ -211,6 +217,7 @@ class TestSafetyValueEnum:
 # 3. Types are consistent
 # ===========================================================================
 
+
 class TestTypesConsistent:
     """All fields have the expected Python types after JSON parse."""
 
@@ -227,18 +234,14 @@ class TestTypesConsistent:
             assert isinstance(data["summary"][key], int), f"{key} is not int"
 
     def test_columns_added_is_list_of_strings(self):
-        result = CheckResult(
-            predictions=[_make_prediction(columns_added=["col_a", "col_b"])]
-        )
+        result = CheckResult(predictions=[_make_prediction(columns_added=["col_a", "col_b"])])
         data = _parse(result)
         cols = data["models"][0]["columns_added"]
         assert isinstance(cols, list)
         assert all(isinstance(c, str) for c in cols)
 
     def test_columns_removed_is_list_of_strings(self):
-        result = CheckResult(
-            predictions=[_make_prediction(columns_removed=["old_col"])]
-        )
+        result = CheckResult(predictions=[_make_prediction(columns_removed=["old_col"])])
         data = _parse(result)
         cols = data["models"][0]["columns_removed"]
         assert isinstance(cols, list)
@@ -271,9 +274,7 @@ class TestTypesConsistent:
 
     def test_on_schema_change_can_be_null(self):
         """on_schema_change is nullable (None for table/view)."""
-        result = CheckResult(
-            predictions=[_make_prediction(on_schema_change=None)]
-        )
+        result = CheckResult(predictions=[_make_prediction(on_schema_change=None)])
         data = _parse(result)
         assert data["models"][0]["on_schema_change"] is None
 
@@ -293,6 +294,7 @@ class TestTypesConsistent:
 # ===========================================================================
 # 4. Round-trip: reconstruct CheckResult from JSON
 # ===========================================================================
+
 
 class TestRoundTrip:
     """Verify JSON output is complete enough to reconstruct CheckResult data."""
@@ -408,9 +410,7 @@ class TestRoundTrip:
 
     def test_materialization_preserved(self):
         for mat in ("table", "view", "incremental", "ephemeral", "snapshot"):
-            result = CheckResult(
-                predictions=[_make_prediction(materialization=mat)]
-            )
+            result = CheckResult(predictions=[_make_prediction(materialization=mat)])
             data = self._roundtrip(result)
             assert data["models"][0]["materialization"] == mat
 
@@ -418,6 +418,7 @@ class TestRoundTrip:
 # ===========================================================================
 # 5. jq-friendly patterns
 # ===========================================================================
+
 
 class TestJqFriendlyPatterns:
     """Common jq queries work on format_json output.
@@ -520,9 +521,7 @@ class TestJqFriendlyPatterns:
             risk="broken_ref",
             reason="dropped col",
         )
-        result = CheckResult(
-            predictions=[_make_prediction(downstream_impacts=[impact, impact])]
-        )
+        result = CheckResult(predictions=[_make_prediction(downstream_impacts=[impact, impact])])
         data = _parse(result)
         cascade = data["summary"].get("cascade_risks", 0)
         assert cascade == 2
@@ -548,6 +547,7 @@ class TestJqFriendlyPatterns:
 # ===========================================================================
 # 6. Multiple runs produce identical JSON for same input
 # ===========================================================================
+
 
 class TestIdempotent:
     """Same CheckResult produces byte-identical JSON on multiple calls."""
@@ -622,6 +622,7 @@ class TestIdempotent:
 # 7. Large output (50 models)
 # ===========================================================================
 
+
 class TestLargeOutput:
     """50-model output is valid JSON with correct summary counts."""
 
@@ -685,8 +686,13 @@ class TestLargeOutput:
     def test_50_models_schema_per_model(self):
         """Every model in the large output has all required keys."""
         required = {
-            "model_name", "materialization", "on_schema_change",
-            "safety", "operations", "columns_added", "columns_removed",
+            "model_name",
+            "materialization",
+            "on_schema_change",
+            "safety",
+            "operations",
+            "columns_added",
+            "columns_removed",
         }
         result = self._make_large_result()
         data = _parse(result)
@@ -699,6 +705,7 @@ class TestLargeOutput:
 # Edge cases for CI script robustness
 # ===========================================================================
 
+
 class TestEdgeCases:
     """Additional edge cases a CI pipeline might encounter."""
 
@@ -710,9 +717,7 @@ class TestEdgeCases:
 
     def test_special_characters_in_model_name(self):
         """Model names with dots/underscores are preserved."""
-        result = CheckResult(
-            predictions=[_make_prediction(name="schema.stg_events__v2")]
-        )
+        result = CheckResult(predictions=[_make_prediction(name="schema.stg_events__v2")])
         data = _parse(result)
         assert data["models"][0]["model_name"] == "schema.stg_events__v2"
 
@@ -755,9 +760,7 @@ class TestEdgeCases:
 
     def test_output_is_valid_utf8(self):
         """Output can be encoded to UTF-8 without errors."""
-        result = CheckResult(
-            predictions=[_make_prediction(columns_added=["col_\u00e9\u00e8"])]
-        )
+        result = CheckResult(predictions=[_make_prediction(columns_added=["col_\u00e9\u00e8"])])
         raw = format_json(result)
         raw.encode("utf-8")  # must not raise
 
@@ -770,9 +773,7 @@ class TestEdgeCases:
             risk="build_failure",
             reason="upstream schema changed",
         )
-        result = CheckResult(
-            predictions=[_make_prediction(downstream_impacts=[impact])]
-        )
+        result = CheckResult(predictions=[_make_prediction(downstream_impacts=[impact])])
         data = _parse(result)
         di = data["models"][0]["downstream_impacts"][0]
         assert set(di.keys()) == {"model_name", "risk", "reason"}

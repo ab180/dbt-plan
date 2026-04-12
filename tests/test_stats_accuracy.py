@@ -94,15 +94,21 @@ class TestStatsOutputCorrectness:
             nodes[nid] = node
 
         # 4 incremental: 2 fail, 1 sync_all_columns, 1 ignore
-        nid, node = _model_node("inc_fail_0", materialization="incremental", on_schema_change="fail")
+        nid, node = _model_node(
+            "inc_fail_0", materialization="incremental", on_schema_change="fail"
+        )
         nodes[nid] = node
-        nid, node = _model_node("inc_fail_1", materialization="incremental", on_schema_change="fail")
+        nid, node = _model_node(
+            "inc_fail_1", materialization="incremental", on_schema_change="fail"
+        )
         nodes[nid] = node
         nid, node = _model_node(
             "inc_sync", materialization="incremental", on_schema_change="sync_all_columns"
         )
         nodes[nid] = node
-        nid, node = _model_node("inc_ign", materialization="incremental", on_schema_change="ignore")
+        nid, node = _model_node(
+            "inc_ign", materialization="incremental", on_schema_change="ignore"
+        )
         nodes[nid] = node
 
         # 2 ephemeral
@@ -245,9 +251,7 @@ class TestManifestColumnFallback:
         """2 of 3 SELECT * models have manifest columns defined."""
         nodes = {}
         # star1 and star2 have columns in manifest
-        nid, node = _model_node(
-            "star1", materialization="table", columns={"id": {}, "name": {}}
-        )
+        nid, node = _model_node("star1", materialization="table", columns={"id": {}, "name": {}})
         nodes[nid] = node
         nid, node = _model_node(
             "star2", materialization="table", columns={"order_id": {}, "total": {}}
@@ -405,9 +409,7 @@ class TestEdgeCases:
     def test_on_schema_change_null_defaults_to_ignore(self, tmp_path, capsys):
         """on_schema_change: null should default to 'ignore'."""
         nodes = {}
-        nid, node = _model_node(
-            "inc_null", materialization="incremental", on_schema_change=None
-        )
+        nid, node = _model_node("inc_null", materialization="incremental", on_schema_change=None)
         nodes[nid] = node
 
         manifest = _make_manifest(nodes)
@@ -509,9 +511,7 @@ class TestStatsWithDialect:
         }
         _setup_compiled_dir(tmp_path, sql_files)
 
-        args = _make_args(
-            str(tmp_path), manifest=str(tmp_path / "manifest.json"), dialect=None
-        )
+        args = _make_args(str(tmp_path), manifest=str(tmp_path / "manifest.json"), dialect=None)
         _do_stats(args)
 
         out = capsys.readouterr().out
@@ -536,9 +536,7 @@ class TestStatsWithCorruptManifest:
 
     def test_missing_manifest_exits_2(self, tmp_path, capsys):
         """Non-existent manifest should exit 2."""
-        args = _make_args(
-            str(tmp_path), manifest=str(tmp_path / "nonexistent_manifest.json")
-        )
+        args = _make_args(str(tmp_path), manifest=str(tmp_path / "nonexistent_manifest.json"))
         with pytest.raises(SystemExit) as exc:
             _do_stats(args)
 

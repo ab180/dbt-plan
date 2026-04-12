@@ -16,6 +16,7 @@ from dbt_plan.cli import _do_run
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_run_args(project_dir: str, **overrides) -> argparse.Namespace:
     """Build a minimal argparse.Namespace for _do_run."""
     defaults = dict(
@@ -177,9 +178,7 @@ class TestVersionCheckLogic:
         assert exit_code == 2
 
         # Verify it tried the --version check
-        mock_run.assert_called_once_with(
-            ["mycli", "--version"], capture_output=True
-        )
+        mock_run.assert_called_once_with(["mycli", "--version"], capture_output=True)
 
     @patch("subprocess.run")
     @patch("dbt_plan.config.Config.load")
@@ -239,7 +238,9 @@ class TestGitStashSafety:
 
     @patch("subprocess.run")
     @patch("dbt_plan.config.Config.load")
-    def test_stash_pop_called_if_baseline_compile_fails(self, mock_config_load, mock_run, tmp_path):
+    def test_stash_pop_called_if_baseline_compile_fails(
+        self, mock_config_load, mock_run, tmp_path
+    ):
         """If baseline compile fails, stash must be popped to restore changes."""
         mock_config_load.return_value = _mock_config("dbt compile")
         args = _make_run_args(str(tmp_path), compile_command="dbt compile")
@@ -258,7 +259,12 @@ class TestGitStashSafety:
             elif cmd == ["git", "status", "--porcelain"]:
                 result.stdout = "M models/test.sql\n"  # has changes
                 result.returncode = 0
-            elif isinstance(cmd, list) and len(cmd) > 2 and cmd[0:2] == ["git", "stash"] and "push" in cmd:
+            elif (
+                isinstance(cmd, list)
+                and len(cmd) > 2
+                and cmd[0:2] == ["git", "stash"]
+                and "push" in cmd
+            ):
                 result.returncode = 0
             elif cmd == ["dbt", "compile"]:
                 # Baseline compile fails
@@ -317,7 +323,8 @@ class TestGitStashSafety:
 
         # Verify no stash commands were issued
         stash_cmds = [
-            cmd for cmd in call_sequence
+            cmd
+            for cmd in call_sequence
             if isinstance(cmd, list) and len(cmd) > 1 and cmd[0:2] == ["git", "stash"]
         ]
         assert stash_cmds == [], f"No stash commands expected, got: {stash_cmds}"
@@ -371,7 +378,9 @@ class TestCompileFailureHandling:
 
     @patch("subprocess.run")
     @patch("dbt_plan.config.Config.load")
-    def test_baseline_compile_stderr_propagated(self, mock_config_load, mock_run, tmp_path, capsys):
+    def test_baseline_compile_stderr_propagated(
+        self, mock_config_load, mock_run, tmp_path, capsys
+    ):
         """When baseline compile fails, stderr should appear in error message."""
         mock_config_load.return_value = _mock_config("dbt compile")
         args = _make_run_args(str(tmp_path), compile_command="dbt compile")
@@ -573,12 +582,8 @@ class TestShellInjectionSafety:
         This is still SAFE because subprocess list form does not interpret $().
         The command 'dbt' receives '$(cat' and '/etc/passwd)' as literal args.
         """
-        mock_config_load.return_value = _mock_config(
-            "dbt compile $(cat /etc/passwd)"
-        )
-        args = _make_run_args(
-            str(tmp_path), compile_command="dbt compile $(cat /etc/passwd)"
-        )
+        mock_config_load.return_value = _mock_config("dbt compile $(cat /etc/passwd)")
+        args = _make_run_args(str(tmp_path), compile_command="dbt compile $(cat /etc/passwd)")
 
         version_result = MagicMock()
         version_result.returncode = 0

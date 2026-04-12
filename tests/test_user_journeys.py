@@ -17,6 +17,7 @@ from unittest.mock import patch
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _build_manifest(nodes: dict, child_map: dict | None = None, project: str = "test") -> dict:
     """Build a minimal manifest.json dict.
 
@@ -101,7 +102,9 @@ def _setup_project(
     return project_dir
 
 
-def _make_args(project_dir: Path, *, fmt: str = "json", select: str | None = None) -> argparse.Namespace:
+def _make_args(
+    project_dir: Path, *, fmt: str = "json", select: str | None = None
+) -> argparse.Namespace:
     """Build argparse.Namespace for _do_check."""
     return argparse.Namespace(
         project_dir=str(project_dir),
@@ -116,7 +119,9 @@ def _make_args(project_dir: Path, *, fmt: str = "json", select: str | None = Non
     )
 
 
-def _run_check(project_dir: Path, *, fmt: str = "json", select: str | None = None) -> tuple[int, dict | str]:
+def _run_check(
+    project_dir: Path, *, fmt: str = "json", select: str | None = None
+) -> tuple[int, dict | str]:
     """Run _do_check and capture stdout.
 
     Returns:
@@ -139,6 +144,7 @@ def _run_check(project_dir: Path, *, fmt: str = "json", select: str | None = Non
 # Journey 1: Add a column to an incremental model
 # ---------------------------------------------------------------------------
 
+
 class TestJourney1AddColumn:
     """Simulate: developer adds a new column to an incremental model with sync_all_columns."""
 
@@ -146,12 +152,14 @@ class TestJourney1AddColumn:
         base_sql = "SELECT event_id, app_id, event_date FROM events"
         current_sql = "SELECT event_id, app_id, event_date, new_metric FROM events"
 
-        manifest = _build_manifest({
-            "stg_events": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-            },
-        })
+        manifest = _build_manifest(
+            {
+                "stg_events": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+            }
+        )
 
         project_dir = _setup_project(
             tmp_path,
@@ -183,6 +191,7 @@ class TestJourney1AddColumn:
 # ---------------------------------------------------------------------------
 # Journey 2: Drop a column from sync_all_columns — destructive
 # ---------------------------------------------------------------------------
+
 
 class TestJourney2DropColumnDestructive:
     """Simulate: developer removes a column from sync_all_columns incremental model."""
@@ -249,6 +258,7 @@ class TestJourney2DropColumnDestructive:
 # Journey 3: Rename a model file
 # ---------------------------------------------------------------------------
 
+
 class TestJourney3RenameModel:
     """Simulate: developer renames dim_users.sql to dim_user.sql (singular rename)."""
 
@@ -256,13 +266,17 @@ class TestJourney3RenameModel:
         model_sql = "SELECT user_id, name, email FROM users"
 
         # Base manifest has dim_users, current has dim_user
-        base_manifest = _build_manifest({
-            "dim_users": {"materialization": "table"},
-        })
+        base_manifest = _build_manifest(
+            {
+                "dim_users": {"materialization": "table"},
+            }
+        )
 
-        current_manifest = _build_manifest({
-            "dim_user": {"materialization": "table"},
-        })
+        current_manifest = _build_manifest(
+            {
+                "dim_user": {"materialization": "table"},
+            }
+        )
 
         project_dir = _setup_project(
             tmp_path,
@@ -296,6 +310,7 @@ class TestJourney3RenameModel:
 # Journey 4: Add a brand new model
 # ---------------------------------------------------------------------------
 
+
 class TestJourney4AddNewModel:
     """Simulate: developer adds a new incremental model with on_schema_change=fail."""
 
@@ -304,14 +319,16 @@ class TestJourney4AddNewModel:
         existing_sql_2 = "SELECT order_id, product_id FROM orders"
         new_model_sql = "SELECT user_id, event_name, ts FROM raw_events"
 
-        manifest = _build_manifest({
-            "dim_products": {"materialization": "table"},
-            "fct_orders": {"materialization": "table"},
-            "stg_raw_events": {
-                "materialization": "incremental",
-                "on_schema_change": "fail",
-            },
-        })
+        manifest = _build_manifest(
+            {
+                "dim_products": {"materialization": "table"},
+                "fct_orders": {"materialization": "table"},
+                "stg_raw_events": {
+                    "materialization": "incremental",
+                    "on_schema_change": "fail",
+                },
+            }
+        )
 
         project_dir = _setup_project(
             tmp_path,
@@ -351,6 +368,7 @@ class TestJourney4AddNewModel:
 # Journey 5: Change materialization from view to incremental
 # ---------------------------------------------------------------------------
 
+
 class TestJourney5ChangeMaterialization:
     """Simulate: developer changes a model from view to incremental with sync_all_columns."""
 
@@ -359,16 +377,20 @@ class TestJourney5ChangeMaterialization:
         # Same columns, minor SQL tweak to trigger "modified" diff
         model_sql_v2 = "SELECT user_id, name, email FROM users WHERE active = true"
 
-        base_manifest = _build_manifest({
-            "dim_users": {"materialization": "view"},
-        })
+        base_manifest = _build_manifest(
+            {
+                "dim_users": {"materialization": "view"},
+            }
+        )
 
-        current_manifest = _build_manifest({
-            "dim_users": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-            },
-        })
+        current_manifest = _build_manifest(
+            {
+                "dim_users": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+            }
+        )
 
         project_dir = _setup_project(
             tmp_path,
@@ -399,6 +421,7 @@ class TestJourney5ChangeMaterialization:
 # Journey 6: Use --select to focus on one model
 # ---------------------------------------------------------------------------
 
+
 class TestJourney6Select:
     """Simulate: developer uses --select to check only one model."""
 
@@ -409,13 +432,15 @@ class TestJourney6Select:
         destructive_sql_base = "SELECT col_a, col_b FROM events"
         destructive_sql_current = "SELECT col_a FROM events"
 
-        manifest = _build_manifest({
-            "dim_products": {"materialization": "table"},
-            "stg_events": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-            },
-        })
+        manifest = _build_manifest(
+            {
+                "dim_products": {"materialization": "table"},
+                "stg_events": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+            }
+        )
 
         project_dir = _setup_project(
             tmp_path,
@@ -448,6 +473,7 @@ class TestJourney6Select:
 # Journey 7: ignore_models filters out known-noisy model
 # ---------------------------------------------------------------------------
 
+
 class TestJourney7IgnoreModels:
     """Simulate: ignore_models config filters out a known-noisy model."""
 
@@ -458,16 +484,18 @@ class TestJourney7IgnoreModels:
         real_sql_base = "SELECT user_id, name FROM users"
         real_sql_current = "SELECT user_id, name, email FROM users"
 
-        manifest = _build_manifest({
-            "scratch_temp": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-            },
-            "dim_users": {
-                "materialization": "incremental",
-                "on_schema_change": "sync_all_columns",
-            },
-        })
+        manifest = _build_manifest(
+            {
+                "scratch_temp": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+                "dim_users": {
+                    "materialization": "incremental",
+                    "on_schema_change": "sync_all_columns",
+                },
+            }
+        )
 
         project_dir = _setup_project(
             tmp_path,

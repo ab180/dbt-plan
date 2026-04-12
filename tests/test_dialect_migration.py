@@ -5,8 +5,6 @@ validates how dbt-plan handles dialect switching, cross-dialect parsing,
 and the footguns that appear when --dialect is misconfigured.
 """
 
-
-
 from dbt_plan.columns import extract_columns
 from dbt_plan.config import Config
 
@@ -86,10 +84,7 @@ class TestBigQuerySQLParsedAsSnowflake:
 
     def test_star_except_with_bigquery_dialect(self):
         """SELECT * EXCEPT(internal_id) + SAFE_CAST on bigquery dialect."""
-        sql = (
-            "SELECT * EXCEPT(internal_id), "
-            "SAFE_CAST(revenue AS FLOAT64) AS revenue FROM t"
-        )
+        sql = "SELECT * EXCEPT(internal_id), SAFE_CAST(revenue AS FLOAT64) AS revenue FROM t"
         result = extract_columns(sql, dialect="bigquery")
         # BigQuery dialect should handle * EXCEPT and SAFE_CAST
         assert result is not None, "BigQuery SQL should parse with bigquery dialect"
@@ -99,10 +94,7 @@ class TestBigQuerySQLParsedAsSnowflake:
 
     def test_star_except_with_snowflake_dialect(self):
         """SELECT * EXCEPT is not Snowflake syntax — what happens?"""
-        sql = (
-            "SELECT * EXCEPT(internal_id), "
-            "SAFE_CAST(revenue AS FLOAT64) AS revenue FROM t"
-        )
+        sql = "SELECT * EXCEPT(internal_id), SAFE_CAST(revenue AS FLOAT64) AS revenue FROM t"
         result = extract_columns(sql, dialect="snowflake")
         # Snowflake doesn't support SELECT * EXCEPT.
         # Acceptable: None (parse failure) or some partial result
@@ -231,8 +223,7 @@ class TestMixedDialectMigration:
 
     # Model B: pure BigQuery SQL (SAFE_CAST, EXCEPT)
     MODEL_B_BIGQUERY = (
-        "SELECT SAFE_CAST(revenue AS FLOAT64) AS revenue, "
-        "user_id, event_name FROM conversions"
+        "SELECT SAFE_CAST(revenue AS FLOAT64) AS revenue, user_id, event_name FROM conversions"
     )
 
     def test_snowflake_dialect_model_a(self):
@@ -323,14 +314,18 @@ class TestMixedDialectMigration:
 
         # All portable patterns should work on both
         for name, res in results.items():
-            assert res["portable"], f"Pattern '{name}' should be portable but failed on one dialect"
+            assert res["portable"], (
+                f"Pattern '{name}' should be portable but failed on one dialect"
+            )
 
         # Snowflake-specific may fail on bigquery
         for name, sql in snowflake_specific.items():
             sf = extract_columns(sql, dialect="snowflake")
             bq = extract_columns(sql, dialect="bigquery")
             # Snowflake should always work with its own dialect
-            assert sf is not None, f"Snowflake pattern '{name}' should parse with snowflake dialect"
+            assert sf is not None, (
+                f"Snowflake pattern '{name}' should parse with snowflake dialect"
+            )
             # BigQuery may or may not parse — just don't crash
 
         # BigQuery-specific may fail on snowflake
@@ -357,9 +352,7 @@ class TestDialectColumnExtractionConsistency:
         coalesce_sql = "SELECT COALESCE(col, 0) AS val FROM t"
         for dialect in ("snowflake", "bigquery", "postgres"):
             result = extract_columns(coalesce_sql, dialect=dialect)
-            assert result == ["val"], (
-                f"COALESCE should extract ['val'] on {dialect}, got {result}"
-            )
+            assert result == ["val"], f"COALESCE should extract ['val'] on {dialect}, got {result}"
 
     def test_nvl_snowflake(self):
         """NVL is Snowflake-specific. BigQuery uses IFNULL."""
@@ -380,9 +373,7 @@ class TestDialectColumnExtractionConsistency:
         sql = "SELECT COALESCE(col, 0) AS val FROM t"
         for dialect in ("snowflake", "bigquery", "postgres", "mysql", "duckdb"):
             result = extract_columns(sql, dialect=dialect)
-            assert result == ["val"], (
-                f"COALESCE should extract ['val'] on {dialect}, got {result}"
-            )
+            assert result == ["val"], f"COALESCE should extract ['val'] on {dialect}, got {result}"
 
     def test_cast_equivalents(self):
         """CAST is standard SQL — should work on all dialects."""
@@ -473,9 +464,7 @@ class TestStatsCommandDialect:
                 if cols == ["*"]:
                     star_count += 1
             # Two SELECT * queries in the list
-            assert star_count == 2, (
-                f"Expected 2 SELECT * models on {dialect}, got {star_count}"
-            )
+            assert star_count == 2, f"Expected 2 SELECT * models on {dialect}, got {star_count}"
 
     def test_stats_consistency_across_dialects(self):
         """Same set of models should produce same stats regardless of dialect.
@@ -490,13 +479,9 @@ class TestStatsCommandDialect:
 
         for dialect in ("snowflake", "bigquery", "postgres"):
             star_count = sum(
-                1
-                for sql in models.values()
-                if extract_columns(sql, dialect=dialect) == ["*"]
+                1 for sql in models.values() if extract_columns(sql, dialect=dialect) == ["*"]
             )
-            assert star_count == 2, (
-                f"Expected 2 SELECT * on {dialect}, got {star_count}"
-            )
+            assert star_count == 2, f"Expected 2 SELECT * on {dialect}, got {star_count}"
 
 
 # ---------------------------------------------------------------------------
@@ -590,8 +575,7 @@ class TestMigrationFootguns:
     def test_lateral_flatten_is_snowflake_only(self):
         """LATERAL FLATTEN is pure Snowflake. BigQuery uses UNNEST."""
         sf_sql = (
-            "SELECT f.value::string AS tag "
-            "FROM events, LATERAL FLATTEN(input => events.tags) AS f"
+            "SELECT f.value::string AS tag FROM events, LATERAL FLATTEN(input => events.tags) AS f"
         )
         bq_sql = "SELECT tag FROM events, UNNEST(tags) AS tag"
 

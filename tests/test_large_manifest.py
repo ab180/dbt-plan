@@ -36,6 +36,7 @@ from dbt_plan.predictor import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _generate_manifest(
     n_models: int,
     n_packages: int = 1,
@@ -97,6 +98,7 @@ def _generate_sql(n_cols: int, model_name: str = "t") -> str:
 # 1. Manifest with 5,000 model nodes
 # ---------------------------------------------------------------------------
 
+
 class TestLargeManifestNodeIndex:
     def test_build_node_index_5000_models(self):
         """build_node_index handles 5,000 models across 10 packages in < 1 second."""
@@ -108,10 +110,7 @@ class TestLargeManifestNodeIndex:
         elapsed = time.perf_counter() - start
 
         # Only root package models are included (every 10th model belongs to root)
-        root_count = sum(
-            1 for nid in manifest["nodes"]
-            if nid.split(".")[1] == "myproject"
-        )
+        root_count = sum(1 for nid in manifest["nodes"] if nid.split(".")[1] == "myproject")
         assert len(index) == root_count
         assert elapsed < 1.0, f"build_node_index took {elapsed:.3f}s (limit: 1.0s)"
 
@@ -141,6 +140,7 @@ class TestLargeManifestNodeIndex:
 # ---------------------------------------------------------------------------
 # 2. child_map with 5,000 entries — find_downstream_batch
 # ---------------------------------------------------------------------------
+
 
 class TestLargeChildMap:
     def test_find_downstream_batch_5000_nodes(self):
@@ -185,6 +185,7 @@ class TestLargeChildMap:
 # ---------------------------------------------------------------------------
 # 3. Memory: manifest with large column definitions
 # ---------------------------------------------------------------------------
+
 
 class TestLargeColumnDefinitions:
     def test_50000_columns_stored_as_tuples(self):
@@ -235,6 +236,7 @@ class TestLargeColumnDefinitions:
 # 4. Cascade analysis at scale
 # ---------------------------------------------------------------------------
 
+
 class TestCascadeAnalysisAtScale:
     def test_cascade_50_changed_models(self, tmp_path):
         """analyze_cascade_impacts with 50 changed models, each having ~20 downstream."""
@@ -260,18 +262,20 @@ class TestCascadeAnalysisAtScale:
             curr_cols = ["id", "name", "col_added"]
             model_cols[mname] = (base_cols, curr_cols)
 
-            predictions.append(DDLPrediction(
-                model_name=mname,
-                materialization="incremental",
-                on_schema_change="sync_all_columns",
-                safety=Safety.DESTRUCTIVE,
-                operations=[
-                    DDLOperation("DROP COLUMN", "col_removed"),
-                    DDLOperation("ADD COLUMN", "col_added"),
-                ],
-                columns_added=["col_added"],
-                columns_removed=["col_removed"],
-            ))
+            predictions.append(
+                DDLPrediction(
+                    model_name=mname,
+                    materialization="incremental",
+                    on_schema_change="sync_all_columns",
+                    safety=Safety.DESTRUCTIVE,
+                    operations=[
+                        DDLOperation("DROP COLUMN", "col_removed"),
+                        DDLOperation("ADD COLUMN", "col_added"),
+                    ],
+                    columns_added=["col_added"],
+                    columns_removed=["col_removed"],
+                )
+            )
 
             # Each changed model has n_downstream_per downstream models
             downstream_nids = []
@@ -332,6 +336,7 @@ class TestCascadeAnalysisAtScale:
 # ---------------------------------------------------------------------------
 # 5. diff_compiled_dirs with 2,000 SQL files
 # ---------------------------------------------------------------------------
+
 
 class TestDiffCompiledDirsAtScale:
     def test_diff_2000_files_100_modified(self, tmp_path):
@@ -420,6 +425,7 @@ class TestDiffCompiledDirsAtScale:
 # 6. format_json with 100 models
 # ---------------------------------------------------------------------------
 
+
 class TestFormatJsonAtScale:
     def test_format_json_100_predictions(self):
         """format_json produces valid JSON for 100 predictions, each with 5 operations."""
@@ -439,16 +445,18 @@ class TestFormatJsonAtScale:
                 )
                 for k in range(3)
             ]
-            predictions.append(DDLPrediction(
-                model_name=mname,
-                materialization="incremental",
-                on_schema_change="sync_all_columns",
-                safety=Safety.DESTRUCTIVE if i % 3 == 0 else Safety.WARNING,
-                operations=ops,
-                columns_added=[f"added_{j}" for j in range(3)],
-                columns_removed=[f"removed_{j}" for j in range(2)],
-                downstream_impacts=impacts,
-            ))
+            predictions.append(
+                DDLPrediction(
+                    model_name=mname,
+                    materialization="incremental",
+                    on_schema_change="sync_all_columns",
+                    safety=Safety.DESTRUCTIVE if i % 3 == 0 else Safety.WARNING,
+                    operations=ops,
+                    columns_added=[f"added_{j}" for j in range(3)],
+                    columns_removed=[f"removed_{j}" for j in range(2)],
+                    downstream_impacts=impacts,
+                )
+            )
             downstream_map[mname] = [f"downstream_{i}_{j}" for j in range(10)]
 
         result = CheckResult(
@@ -491,6 +499,7 @@ class TestFormatJsonAtScale:
 # 7. Regex compilation in cascade analysis
 # ---------------------------------------------------------------------------
 
+
 class TestRegexAtScale:
     def test_50_removed_columns_100_downstream(self, tmp_path):
         """50 removed columns x 100 downstream models = 5,000 regex matches."""
@@ -499,15 +508,17 @@ class TestRegexAtScale:
         removed_cols = [f"removed_col_{i:03d}" for i in range(n_removed)]
 
         # Single changed model
-        predictions = [DDLPrediction(
-            model_name="source_model",
-            materialization="table",
-            on_schema_change=None,
-            safety=Safety.SAFE,
-            operations=[DDLOperation("CREATE OR REPLACE TABLE")],
-            columns_added=[],
-            columns_removed=removed_cols,
-        )]
+        predictions = [
+            DDLPrediction(
+                model_name="source_model",
+                materialization="table",
+                on_schema_change=None,
+                safety=Safety.SAFE,
+                operations=[DDLOperation("CREATE OR REPLACE TABLE")],
+                columns_added=[],
+                columns_removed=removed_cols,
+            )
+        ]
 
         model_node_ids = {"source_model": "model.proj.source_model"}
         model_cols: dict[str, tuple[list[str] | None, list[str] | None]] = {
@@ -541,7 +552,7 @@ class TestRegexAtScale:
             base_node_index[ds_name] = ds_node
 
             # SQL referencing ~half the removed columns (realistic: not all referenced)
-            referenced = removed_cols[:n_removed // 2]
+            referenced = removed_cols[: n_removed // 2]
             sql_lines = [f"SELECT {', '.join(referenced)}"]
             # Pad to 100 lines
             sql_lines.extend([f"-- padding line {k}" for k in range(99)])
@@ -567,9 +578,7 @@ class TestRegexAtScale:
 
         # Verify broken_ref impacts were detected
         pred = updated[0]
-        broken_ref_impacts = [
-            imp for imp in pred.downstream_impacts if imp.risk == "broken_ref"
-        ]
+        broken_ref_impacts = [imp for imp in pred.downstream_impacts if imp.risk == "broken_ref"]
         assert len(broken_ref_impacts) == n_downstream, (
             f"Expected {n_downstream} broken_ref impacts, got {len(broken_ref_impacts)}"
         )
@@ -592,15 +601,17 @@ class TestRegexAtScale:
         n_downstream = 100
         removed_cols = [f"regex_col_{i:03d}" for i in range(n_removed)]
 
-        predictions = [DDLPrediction(
-            model_name="regex_source",
-            materialization="table",
-            on_schema_change=None,
-            safety=Safety.SAFE,
-            operations=[DDLOperation("CREATE OR REPLACE TABLE")],
-            columns_added=[],
-            columns_removed=removed_cols,
-        )]
+        predictions = [
+            DDLPrediction(
+                model_name="regex_source",
+                materialization="table",
+                on_schema_change=None,
+                safety=Safety.SAFE,
+                operations=[DDLOperation("CREATE OR REPLACE TABLE")],
+                columns_added=[],
+                columns_removed=removed_cols,
+            )
+        ]
 
         model_node_ids = {"regex_source": "model.proj.regex_source"}
         model_cols: dict[str, tuple[list[str] | None, list[str] | None]] = {
@@ -654,9 +665,7 @@ class TestRegexAtScale:
 
         # No broken refs should be found (no SQL references removed columns)
         pred = updated[0]
-        broken_ref_impacts = [
-            imp for imp in pred.downstream_impacts if imp.risk == "broken_ref"
-        ]
+        broken_ref_impacts = [imp for imp in pred.downstream_impacts if imp.risk == "broken_ref"]
         assert len(broken_ref_impacts) == 0
 
         assert elapsed < 1.0, f"Regex (no matches) took {elapsed:.3f}s (limit: 1.0s)"
@@ -665,6 +674,7 @@ class TestRegexAtScale:
 # ---------------------------------------------------------------------------
 # Edge cases at scale
 # ---------------------------------------------------------------------------
+
 
 class TestEdgeCasesAtScale:
     def test_build_node_index_all_disabled(self):

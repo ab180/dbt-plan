@@ -28,6 +28,7 @@ from dbt_plan.manifest import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _manifest_with_node(node_id: str, node_data: dict) -> dict:
     """Build a minimal manifest dict wrapping a single node."""
     return {"nodes": {node_id: node_data}, "child_map": {}, "metadata": {}}
@@ -37,14 +38,13 @@ def _manifest_with_node(node_id: str, node_data: dict) -> dict:
 # 1. {"config": null} — node with null config
 # ---------------------------------------------------------------------------
 
+
 class TestNullConfig:
     """Config key exists but is explicitly null/None."""
 
     def test_build_node_index_null_config(self):
         """build_node_index handles config: null without crashing."""
-        manifest = _manifest_with_node(
-            "model.p.m", {"name": "m", "config": None}
-        )
+        manifest = _manifest_with_node("model.p.m", {"name": "m", "config": None})
         index = build_node_index(manifest)
         assert "m" in index
         assert index["m"].materialization == "table"
@@ -52,9 +52,7 @@ class TestNullConfig:
 
     def test_find_node_by_name_null_config(self):
         """find_node_by_name handles config: null without crashing."""
-        manifest = _manifest_with_node(
-            "model.p.m", {"name": "m", "config": None}
-        )
+        manifest = _manifest_with_node("model.p.m", {"name": "m", "config": None})
         node = find_node_by_name("m", manifest)
         assert node is not None
         assert node.materialization == "table"
@@ -64,6 +62,7 @@ class TestNullConfig:
 # ---------------------------------------------------------------------------
 # 2. {"config": {"materialized": null}} — null materialized
 # ---------------------------------------------------------------------------
+
 
 class TestNullMaterialized:
     """Materialized key is explicitly null."""
@@ -89,6 +88,7 @@ class TestNullMaterialized:
 # ---------------------------------------------------------------------------
 # 3. {"config": {"on_schema_change": null}} — null on_schema_change
 # ---------------------------------------------------------------------------
+
 
 class TestNullOnSchemaChange:
     """on_schema_change key is explicitly null."""
@@ -117,6 +117,7 @@ class TestNullOnSchemaChange:
 # 4. Both materialized and on_schema_change are null
 # ---------------------------------------------------------------------------
 
+
 class TestBothNull:
     """Both materialized and on_schema_change are null."""
 
@@ -144,21 +145,18 @@ class TestBothNull:
 # 5. {"config": {}} — empty config
 # ---------------------------------------------------------------------------
 
+
 class TestEmptyConfig:
     """Config exists but is an empty dict."""
 
     def test_build_node_index_empty_config(self):
-        manifest = _manifest_with_node(
-            "model.p.m", {"name": "m", "config": {}}
-        )
+        manifest = _manifest_with_node("model.p.m", {"name": "m", "config": {}})
         index = build_node_index(manifest)
         assert index["m"].materialization == "table"
         assert index["m"].on_schema_change is None
 
     def test_find_node_by_name_empty_config(self):
-        manifest = _manifest_with_node(
-            "model.p.m", {"name": "m", "config": {}}
-        )
+        manifest = _manifest_with_node("model.p.m", {"name": "m", "config": {}})
         node = find_node_by_name("m", manifest)
         assert node is not None
         assert node.materialization == "table"
@@ -168,21 +166,18 @@ class TestEmptyConfig:
 # 6. No "config" key at all
 # ---------------------------------------------------------------------------
 
+
 class TestMissingConfig:
     """Node has no 'config' key whatsoever."""
 
     def test_build_node_index_missing_config(self):
-        manifest = _manifest_with_node(
-            "model.p.m", {"name": "m"}
-        )
+        manifest = _manifest_with_node("model.p.m", {"name": "m"})
         index = build_node_index(manifest)
         assert index["m"].materialization == "table"
         assert index["m"].on_schema_change is None
 
     def test_find_node_by_name_missing_config(self):
-        manifest = _manifest_with_node(
-            "model.p.m", {"name": "m"}
-        )
+        manifest = _manifest_with_node("model.p.m", {"name": "m"})
         node = find_node_by_name("m", manifest)
         assert node is not None
         assert node.materialization == "table"
@@ -191,6 +186,7 @@ class TestMissingConfig:
 # ---------------------------------------------------------------------------
 # 7. {"name": null} — null model name
 # ---------------------------------------------------------------------------
+
 
 class TestNullName:
     """Model name is explicitly null — should be skipped."""
@@ -224,6 +220,7 @@ class TestNullName:
 # ---------------------------------------------------------------------------
 # 8. {"columns": null} — null columns
 # ---------------------------------------------------------------------------
+
 
 class TestNullColumns:
     """Columns key is explicitly null vs missing vs empty dict."""
@@ -259,6 +256,7 @@ class TestNullColumns:
 # ---------------------------------------------------------------------------
 # Null manifest-level sections (nodes, child_map, metadata)
 # ---------------------------------------------------------------------------
+
 
 class TestNullManifestSections:
     """Top-level manifest sections can be null in JSON."""
@@ -312,6 +310,7 @@ class TestNullManifestSections:
 # _do_stats null safety (via CLI internals)
 # ---------------------------------------------------------------------------
 
+
 class TestStatsNullSafety:
     """Verify _do_stats handles null config values without crashing.
 
@@ -327,7 +326,10 @@ class TestStatsNullSafety:
             "nodes": {
                 "model.p.m1": {"name": "m1", "config": None},
                 "model.p.m2": {"name": "m2", "config": {"materialized": None}},
-                "model.p.m3": {"name": "m3", "config": {"materialized": "incremental", "on_schema_change": None}},
+                "model.p.m3": {
+                    "name": "m3",
+                    "config": {"materialized": "incremental", "on_schema_change": None},
+                },
                 "model.p.m4": {"name": "m4"},  # no config key
             },
         }
@@ -359,6 +361,7 @@ class TestStatsNullSafety:
 # ---------------------------------------------------------------------------
 # predict_ddl null safety
 # ---------------------------------------------------------------------------
+
 
 class TestPredictorNullSafety:
     """Verify predict_ddl handles None on_schema_change gracefully."""
@@ -398,6 +401,7 @@ class TestPredictorNullSafety:
 # ---------------------------------------------------------------------------
 # Cascade analysis null safety
 # ---------------------------------------------------------------------------
+
 
 class TestCascadeNullSafety:
     """Verify cascade analysis handles null on_schema_change in downstream models."""
@@ -444,6 +448,7 @@ class TestCascadeNullSafety:
 # End-to-end: JSON round-trip with null values
 # ---------------------------------------------------------------------------
 
+
 class TestJsonRoundTripNullValues:
     """Verify the full pipeline handles null values that come from actual JSON parsing."""
 
@@ -470,7 +475,10 @@ class TestJsonRoundTripNullValues:
                 },
                 "model.proj.healthy": {
                     "name": "healthy",
-                    "config": {"materialized": "incremental", "on_schema_change": "sync_all_columns"},
+                    "config": {
+                        "materialized": "incremental",
+                        "on_schema_change": "sync_all_columns",
+                    },
                     "columns": {"id": {}, "name": {}},
                 },
             },
@@ -512,6 +520,7 @@ class TestJsonRoundTripNullValues:
 # Edge case: enabled key with null config
 # ---------------------------------------------------------------------------
 
+
 class TestEnabledNullConfig:
     """Ensure enabled: false detection works even with edge-case configs."""
 
@@ -536,8 +545,6 @@ class TestEnabledNullConfig:
 
     def test_null_config_does_not_skip_as_disabled(self):
         """config: null should not cause the model to be skipped as disabled."""
-        manifest = _manifest_with_node(
-            "model.p.m", {"name": "m", "config": None}
-        )
+        manifest = _manifest_with_node("model.p.m", {"name": "m", "config": None})
         index = build_node_index(manifest)
         assert "m" in index

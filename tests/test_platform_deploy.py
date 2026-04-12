@@ -22,6 +22,7 @@ from dbt_plan.predictor import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_manifest(
     *,
     root_project: str,
@@ -82,6 +83,7 @@ def _make_node(name, materialization="incremental", on_schema_change="ignore"):
 # ===========================================================================
 # Scenario 1: include_packages interaction with cascade
 # ===========================================================================
+
 
 class TestIncludePackagesCascade:
     """Verify that include_packages controls whether package models participate
@@ -151,13 +153,9 @@ class TestIncludePackagesCascade:
 
         # Write downstream SQL files
         int_sql = tmp_path / "int_users.sql"
-        int_sql.write_text(
-            "SELECT user_id, email FROM {{ ref('stg_users') }}"
-        )
+        int_sql.write_text("SELECT user_id, email FROM {{ ref('stg_users') }}")
         fct_sql = tmp_path / "fct_users.sql"
-        fct_sql.write_text(
-            "SELECT user_id FROM {{ ref('int_users') }}"
-        )
+        fct_sql.write_text("SELECT user_id FROM {{ ref('int_users') }}")
 
         downstream = find_downstream_batch(
             ["model.myproject.stg_users"],
@@ -270,14 +268,12 @@ class TestIncludePackagesCascade:
 # Scenario 2: Config shared across projects
 # ===========================================================================
 
+
 class TestConfigSharedAcrossProjects:
     """Verify the same .dbt-plan.yml works for different project structures."""
 
     CONFIG_CONTENT = (
-        "ignore_models: [scratch_model]\n"
-        "dialect: snowflake\n"
-        "warning_exit_code: 0\n"
-        "format: json\n"
+        "ignore_models: [scratch_model]\ndialect: snowflake\nwarning_exit_code: 0\nformat: json\n"
     )
 
     def test_project_a_loads_config(self, tmp_path):
@@ -308,17 +304,11 @@ class TestConfigSharedAcrossProjects:
         """Config instances for different projects are independent (no shared state)."""
         project_a = tmp_path / "project_a"
         project_a.mkdir()
-        (project_a / ".dbt-plan.yml").write_text(
-            "ignore_models: [model_a]\n"
-            "dialect: bigquery\n"
-        )
+        (project_a / ".dbt-plan.yml").write_text("ignore_models: [model_a]\ndialect: bigquery\n")
 
         project_b = tmp_path / "project_b"
         project_b.mkdir()
-        (project_b / ".dbt-plan.yml").write_text(
-            "ignore_models: [model_b]\n"
-            "dialect: postgres\n"
-        )
+        (project_b / ".dbt-plan.yml").write_text("ignore_models: [model_b]\ndialect: postgres\n")
 
         config_a = Config.load(project_a)
         config_b = Config.load(project_b)
@@ -348,6 +338,7 @@ class TestConfigSharedAcrossProjects:
 # ===========================================================================
 # Scenario 3: Multiple dbt projects in compiled dir error
 # ===========================================================================
+
 
 class TestMultipleProjectsInCompiledDir:
     """When target/compiled/ has multiple project subdirs, user gets a clear error."""
@@ -433,6 +424,7 @@ class TestMultipleProjectsInCompiledDir:
 # ===========================================================================
 # Scenario 4: Metadata project_name vs heuristic
 # ===========================================================================
+
 
 class TestMetadataVsHeuristic:
     """Verify metadata.project_name is preferred over the most-common-package heuristic."""
@@ -569,6 +561,7 @@ class TestMetadataVsHeuristic:
 # Integration: Full cascade flow with package boundaries
 # ===========================================================================
 
+
 class TestCascadeWithPackageBoundaries:
     """End-to-end: column change in root model cascades through the DAG,
     respecting package boundaries."""
@@ -618,9 +611,7 @@ class TestCascadeWithPackageBoundaries:
 
         # Write downstream SQL
         fct_sql = tmp_path / "fct_revenue.sql"
-        fct_sql.write_text(
-            "SELECT order_id, amount, currency FROM {{ ref('int_orders') }}"
-        )
+        fct_sql.write_text("SELECT order_id, amount, currency FROM {{ ref('int_orders') }}")
 
         downstream = find_downstream_batch(
             ["model.shop.int_orders"],
@@ -630,7 +621,9 @@ class TestCascadeWithPackageBoundaries:
         updated, downstream_map = analyze_cascade_impacts(
             predictions=[pred],
             model_node_ids={"int_orders": "model.shop.int_orders"},
-            model_cols={"int_orders": (["order_id", "amount", "currency"], ["order_id", "amount"])},
+            model_cols={
+                "int_orders": (["order_id", "amount", "currency"], ["order_id", "amount"])
+            },
             all_downstream=downstream,
             node_index=index,
             base_node_index={},
@@ -683,9 +676,7 @@ class TestCascadeWithPackageBoundaries:
         )
 
         agg_sql = tmp_path / "agg_daily.sql"
-        agg_sql.write_text(
-            "SELECT order_id, currency FROM {{ ref('int_orders') }}"
-        )
+        agg_sql.write_text("SELECT order_id, currency FROM {{ ref('int_orders') }}")
 
         downstream = find_downstream_batch(
             ["model.shop.int_orders"],
@@ -695,7 +686,9 @@ class TestCascadeWithPackageBoundaries:
         updated, _ = analyze_cascade_impacts(
             predictions=[pred],
             model_node_ids={"int_orders": "model.shop.int_orders"},
-            model_cols={"int_orders": (["order_id", "amount", "currency"], ["order_id", "amount"])},
+            model_cols={
+                "int_orders": (["order_id", "amount", "currency"], ["order_id", "amount"])
+            },
             all_downstream=downstream,
             node_index=index,
             base_node_index={},
@@ -705,5 +698,7 @@ class TestCascadeWithPackageBoundaries:
         impact_names = [imp.model_name for imp in updated[0].downstream_impacts]
         # agg_daily should now be detected (build_failure + broken_ref)
         assert "agg_daily" in impact_names
-        risks = [imp.risk for imp in updated[0].downstream_impacts if imp.model_name == "agg_daily"]
+        risks = [
+            imp.risk for imp in updated[0].downstream_impacts if imp.model_name == "agg_daily"
+        ]
         assert "build_failure" in risks or "broken_ref" in risks

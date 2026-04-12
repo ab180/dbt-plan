@@ -167,11 +167,9 @@ def predict_ddl(
         )
 
     # SELECT * EXCEPT(...) sentinel — columns excluded but full set unknown
-    base_is_star_except = (
-        len(base_columns) == 1 and base_columns[0].startswith("* except(")
-    )
-    current_is_star_except = (
-        len(current_columns) == 1 and current_columns[0].startswith("* except(")
+    base_is_star_except = len(base_columns) == 1 and base_columns[0].startswith("* except(")
+    current_is_star_except = len(current_columns) == 1 and current_columns[0].startswith(
+        "* except("
     )
     if base_is_star_except or current_is_star_except:
         # Both are * except with identical exclusions → no change, still WARNING
@@ -194,9 +192,7 @@ def predict_ddl(
                     on_schema_change=osc,
                     safety=Safety.WARNING,
                     operations=[
-                        DDLOperation(
-                            "REVIEW REQUIRED (SELECT * EXCEPT — exclusions changed)"
-                        )
+                        DDLOperation("REVIEW REQUIRED (SELECT * EXCEPT — exclusions changed)")
                     ],
                 )
         # One side is * except, other is explicit or plain * → column diff impossible
@@ -205,9 +201,7 @@ def predict_ddl(
             materialization=materialization,
             on_schema_change=osc,
             safety=Safety.WARNING,
-            operations=[
-                DDLOperation("REVIEW REQUIRED (SELECT * EXCEPT — column removal likely)")
-            ],
+            operations=[DDLOperation("REVIEW REQUIRED (SELECT * EXCEPT — column removal likely)")],
         )
 
     # Detect duplicate column names (e.g., from JOINs without aliases)

@@ -13,6 +13,7 @@ from dbt_plan.predictor import DDLOperation, DDLPrediction, DownstreamImpact, Sa
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _complex_scenario() -> CheckResult:
     """Build a realistic PR comment scenario with mixed severity models.
 
@@ -100,6 +101,7 @@ def _complex_scenario() -> CheckResult:
 # 1. Valid markdown structure
 # ---------------------------------------------------------------------------
 
+
 class TestMarkdownStructure:
     """Verify structural correctness of generated GitHub markdown."""
 
@@ -166,6 +168,7 @@ class TestMarkdownStructure:
 # 2. Summary line format
 # ---------------------------------------------------------------------------
 
+
 class TestSummaryLine:
     """Verify the summary line is in backtick code format on the last line."""
 
@@ -221,6 +224,7 @@ class TestSummaryLine:
 # 3. Realistic PR comment content
 # ---------------------------------------------------------------------------
 
+
 class TestRealisticPRComment:
     """Verify a complex scenario produces correct, complete output."""
 
@@ -238,7 +242,8 @@ class TestRealisticPRComment:
         lines = output.splitlines()
         # Model header lines start with an emoji, not with '>' (blockquote warnings)
         model_lines = [
-            ln for ln in lines
+            ln
+            for ln in lines
             if ("**DESTRUCTIVE**" in ln or "**WARNING**" in ln or "**SAFE**" in ln)
             and not ln.startswith(">")
         ]
@@ -271,13 +276,13 @@ class TestRealisticPRComment:
         """Parse failures appear as > blockquote WARNING."""
         result = _complex_scenario()
         output = format_github(result)
-        assert '> **WARNING**: Could not extract columns for: broken_cte_model' in output
+        assert "> **WARNING**: Could not extract columns for: broken_cte_model" in output
 
     def test_skipped_models_blockquote(self):
         """Skipped models appear as > blockquote WARNING."""
         result = _complex_scenario()
         output = format_github(result)
-        assert '> **WARNING**: Skipped 1 model(s) not found in manifest: orphan_staging' in output
+        assert "> **WARNING**: Skipped 1 model(s) not found in manifest: orphan_staging" in output
 
     def test_heading_count_matches(self):
         """The heading line mentions the correct total count."""
@@ -290,6 +295,7 @@ class TestRealisticPRComment:
 # ---------------------------------------------------------------------------
 # 4. Edge case: long and special model names
 # ---------------------------------------------------------------------------
+
 
 class TestEdgeCaseModelNames:
     """Model names that could break markdown formatting."""
@@ -368,6 +374,7 @@ class TestEdgeCaseModelNames:
 # 5. Downstream list formatting
 # ---------------------------------------------------------------------------
 
+
 class TestDownstreamListGithub:
     """Downstream list rendering in github format."""
 
@@ -437,6 +444,7 @@ class TestDownstreamListGithub:
 # ---------------------------------------------------------------------------
 # 6. Multiple cascade impacts on same model
 # ---------------------------------------------------------------------------
+
 
 class TestMultipleCascadeImpacts:
     """Model with both broken_ref and build_failure on different downstream models."""
@@ -524,6 +532,7 @@ class TestMultipleCascadeImpacts:
 # ---------------------------------------------------------------------------
 # 7. Compare text vs github output
 # ---------------------------------------------------------------------------
+
 
 class TestTextVsGithubConsistency:
     """Same CheckResult should produce consistent content in both formats."""

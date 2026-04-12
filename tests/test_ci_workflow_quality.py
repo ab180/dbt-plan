@@ -20,6 +20,7 @@ from dbt_plan.cli import _CI_WORKFLOW, _do_ci_setup
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _run_ci_setup(project_dir):
     """Run _do_ci_setup pointing at project_dir, return the workflow file Path."""
     args = argparse.Namespace(project_dir=str(project_dir))
@@ -30,6 +31,7 @@ def _run_ci_setup(project_dir):
 # ---------------------------------------------------------------------------
 # 1. Generated YAML is valid
 # ---------------------------------------------------------------------------
+
 
 class TestGeneratedYamlValid:
     def test_ci_setup_creates_file(self, tmp_path):
@@ -58,6 +60,7 @@ class TestGeneratedYamlValid:
 # ---------------------------------------------------------------------------
 # 2. Workflow structure correctness
 # ---------------------------------------------------------------------------
+
 
 class TestWorkflowStructure:
     def test_pull_request_paths_include_models(self):
@@ -88,6 +91,7 @@ class TestWorkflowStructure:
 # ---------------------------------------------------------------------------
 # 3. Steps are complete
 # ---------------------------------------------------------------------------
+
 
 class TestStepsComplete:
     def test_checkout_v4_with_fetch_depth_0(self):
@@ -170,9 +174,7 @@ class TestStepsComplete:
 
     def test_gate_step_runs_dbt_plan_check(self):
         """Gate step runs dbt-plan check (for exit code)."""
-        gate_match = re.search(
-            r"- name: Gate\s*\n\s*run:\s*(.+?)(?:\n|$)", _CI_WORKFLOW
-        )
+        gate_match = re.search(r"- name: Gate\s*\n\s*run:\s*(.+?)(?:\n|$)", _CI_WORKFLOW)
         assert gate_match, "Gate step not found"
         assert "dbt-plan check" in gate_match.group(1)
 
@@ -193,6 +195,7 @@ class TestStepsComplete:
 # ---------------------------------------------------------------------------
 # 4. Security considerations
 # ---------------------------------------------------------------------------
+
 
 class TestSecurityConsiderations:
     def test_uses_safe_base_sha_reference(self):
@@ -238,6 +241,7 @@ class TestSecurityConsiderations:
 # 5. File placement
 # ---------------------------------------------------------------------------
 
+
 class TestFilePlacement:
     def test_creates_workflow_at_correct_path(self, tmp_path):
         """File is created at .github/workflows/dbt-plan.yml."""
@@ -274,6 +278,7 @@ class TestFilePlacement:
 # 6. Idempotency
 # ---------------------------------------------------------------------------
 
+
 class TestIdempotency:
     def test_first_call_creates_file(self, tmp_path):
         """First call creates the workflow file successfully."""
@@ -302,6 +307,7 @@ class TestIdempotency:
 # ---------------------------------------------------------------------------
 # 7. Generated workflow matches _CI_WORKFLOW constant
 # ---------------------------------------------------------------------------
+
 
 class TestContentMatchesConstant:
     def test_file_content_is_exactly_ci_workflow(self, tmp_path):

@@ -360,9 +360,7 @@ class TestChildMapNonExistentNodes:
         )
         # Should find child in base_node_index and detect build_failure
         assert len(updated[0].downstream_impacts) > 0
-        assert any(
-            imp.risk == "build_failure" for imp in updated[0].downstream_impacts
-        )
+        assert any(imp.risk == "build_failure" for imp in updated[0].downstream_impacts)
 
 
 # ---------------------------------------------------------------------------

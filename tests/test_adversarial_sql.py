@@ -26,9 +26,7 @@ class TestExtremelyLongSQL:
             if i == 0:
                 ctes.append(f"cte_{i} AS (SELECT 1 AS col_{i})")
             else:
-                ctes.append(
-                    f"cte_{i} AS (SELECT col_{i - 1}, {i} AS col_{i} FROM cte_{i - 1})"
-                )
+                ctes.append(f"cte_{i} AS (SELECT col_{i - 1}, {i} AS col_{i} FROM cte_{i - 1})")
         sql = "WITH " + ",\n".join(ctes) + "\nSELECT * FROM cte_1999"
         assert len(sql) > 100_000, f"SQL is only {len(sql)} bytes"
 

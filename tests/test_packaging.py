@@ -8,9 +8,17 @@ import sys
 import zipfile
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "dist"
 SRC = ROOT / "src" / "dbt_plan"
+
+# Wheel tests require `uv build` to have been run; skip in CI where dist/ doesn't exist
+_has_wheel = bool(sorted(DIST.glob("dbt_plan-*.whl"))) if DIST.is_dir() else False
+requires_wheel = pytest.mark.skipif(
+    not _has_wheel, reason="No wheel in dist/ — run `uv build` first"
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -61,8 +69,7 @@ class TestVersionConsistency:
 
     def test_versions_match(self) -> None:
         assert _pyproject_version() == _init_version(), (
-            f"pyproject.toml ({_pyproject_version()}) != "
-            f"__init__.py ({_init_version()})"
+            f"pyproject.toml ({_pyproject_version()}) != __init__.py ({_init_version()})"
         )
 
 
@@ -71,6 +78,7 @@ class TestVersionConsistency:
 # ---------------------------------------------------------------------------
 
 
+@requires_wheel
 class TestSourceInclusion:
     """All .py source files under src/dbt_plan must appear in the wheel."""
 
@@ -101,6 +109,7 @@ class TestSourceInclusion:
 # ---------------------------------------------------------------------------
 
 
+@requires_wheel
 class TestPEP561:
     def test_py_typed_on_disk(self) -> None:
         assert (SRC / "py.typed").exists(), "py.typed marker missing on disk"
@@ -115,6 +124,7 @@ class TestPEP561:
 # ---------------------------------------------------------------------------
 
 
+@requires_wheel
 class TestTestExclusion:
     def test_no_test_files_in_wheel(self) -> None:
         filenames = _wheel_filenames()
@@ -141,9 +151,7 @@ class TestDependencies:
     def test_only_sqlglot_runtime_dependency(self) -> None:
         pyproject = _read_pyproject()
         # Extract the dependencies list
-        match = re.search(
-            r"^dependencies\s*=\s*\[(.*?)\]", pyproject, re.MULTILINE | re.DOTALL
-        )
+        match = re.search(r"^dependencies\s*=\s*\[(.*?)\]", pyproject, re.MULTILINE | re.DOTALL)
         assert match, "Could not find dependencies in pyproject.toml"
         deps_block = match.group(1)
         # Parse individual dependency names (ignore version specifiers)
@@ -156,9 +164,7 @@ class TestDependencies:
         pyproject = _read_pyproject()
         assert "[project.optional-dependencies]" in pyproject
         # pytest should be in test extras, not in main deps
-        match = re.search(
-            r"^dependencies\s*=\s*\[(.*?)\]", pyproject, re.MULTILINE | re.DOTALL
-        )
+        match = re.search(r"^dependencies\s*=\s*\[(.*?)\]", pyproject, re.MULTILINE | re.DOTALL)
         assert match
         assert "pytest" not in match.group(1), "pytest should not be a runtime dependency"
 
@@ -190,6 +196,7 @@ class TestCLIEntryPoint:
         pyproject = _read_pyproject()
         assert 'dbt-plan = "dbt_plan.cli:main"' in pyproject
 
+    @requires_wheel
     def test_entry_point_in_wheel(self) -> None:
         whl = _find_wheel()
         with zipfile.ZipFile(whl) as zf:
@@ -233,6 +240,7 @@ class TestCLIEntryPoint:
 # ---------------------------------------------------------------------------
 
 
+@requires_wheel
 class TestWheelCleanliness:
     def test_no_pyc_files(self) -> None:
         filenames = _wheel_filenames()
@@ -253,12 +261,7 @@ class TestWheelCleanliness:
 
     def test_no_docs_in_wheel(self) -> None:
         filenames = _wheel_filenames()
-        doc_files = [
-            f
-            for f in filenames
-            if f.endswith((".md", ".rst"))
-            and "METADATA" not in f
-        ]
+        doc_files = [f for f in filenames if f.endswith((".md", ".rst")) and "METADATA" not in f]
         assert doc_files == [], f"Documentation files leaked into wheel: {doc_files}"
 
 
@@ -274,9 +277,7 @@ class TestChangelog:
     def test_changelog_mentions_current_version(self) -> None:
         changelog = (ROOT / "CHANGELOG.md").read_text()
         version = _pyproject_version()
-        assert version in changelog, (
-            f"CHANGELOG.md does not mention current version {version}"
-        )
+        assert version in changelog, f"CHANGELOG.md does not mention current version {version}"
 
     def test_changelog_has_section_for_current_version(self) -> None:
         changelog = (ROOT / "CHANGELOG.md").read_text()
@@ -293,6 +294,7 @@ class TestChangelog:
 # ---------------------------------------------------------------------------
 
 
+@requires_wheel
 class TestLicense:
     def test_license_file_exists(self) -> None:
         assert (ROOT / "LICENSE").exists(), "LICENSE file missing"

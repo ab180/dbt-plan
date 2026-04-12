@@ -18,6 +18,7 @@ from dbt_plan.cli import _do_check, _do_snapshot
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _minimal_manifest(models: dict[str, dict] | None = None, project_name: str = "my_project"):
     """Build a minimal manifest.json dict."""
     nodes = {}
@@ -48,7 +49,9 @@ def _snapshot_args(project_dir: Path) -> argparse.Namespace:
     )
 
 
-def _check_args(project_dir: Path, *, fmt: str = "json", no_color: bool = True) -> argparse.Namespace:
+def _check_args(
+    project_dir: Path, *, fmt: str = "json", no_color: bool = True
+) -> argparse.Namespace:
     return argparse.Namespace(
         project_dir=str(project_dir),
         target_dir="target",
@@ -74,6 +77,7 @@ def _setup_target(project_dir: Path, models_sql: dict[str, str], manifest: dict)
 # ---------------------------------------------------------------------------
 # 1. Corrupted manifest.json in snapshot
 # ---------------------------------------------------------------------------
+
 
 class TestCorruptedManifest:
     """Base manifest contains invalid JSON — _do_check should not crash."""
@@ -138,6 +142,7 @@ class TestCorruptedManifest:
 # ---------------------------------------------------------------------------
 # 2. Empty manifest.json in snapshot
 # ---------------------------------------------------------------------------
+
 
 class TestEmptyManifest:
     """Base manifest.json is an empty string — json.JSONDecodeError should be caught."""
@@ -220,6 +225,7 @@ class TestEmptyManifest:
 # 3. Missing compiled SQL in snapshot but manifest exists
 # ---------------------------------------------------------------------------
 
+
 class TestMissingCompiledInSnapshot:
     """Snapshot has manifest.json but compiled/ is empty — all current models appear as 'added'."""
 
@@ -228,14 +234,20 @@ class TestMissingCompiledInSnapshot:
         project_dir = tmp_path / "project"
         project_dir.mkdir()
 
-        manifest = _minimal_manifest({
-            "model_a": {"materialized": "table"},
-            "model_b": {"materialized": "incremental", "on_schema_change": "fail"},
-        })
-        _setup_target(project_dir, {
-            "model_a": "SELECT id, name FROM users",
-            "model_b": "SELECT event_id, ts FROM events",
-        }, manifest)
+        manifest = _minimal_manifest(
+            {
+                "model_a": {"materialized": "table"},
+                "model_b": {"materialized": "incremental", "on_schema_change": "fail"},
+            }
+        )
+        _setup_target(
+            project_dir,
+            {
+                "model_a": "SELECT id, name FROM users",
+                "model_b": "SELECT event_id, ts FROM events",
+            },
+            manifest,
+        )
 
         # Base snapshot: manifest exists, compiled dir exists but is empty
         base_compiled = project_dir / ".dbt-plan" / "base" / "compiled"
@@ -257,6 +269,7 @@ class TestMissingCompiledInSnapshot:
 # ---------------------------------------------------------------------------
 # 4. Snapshot with extra non-SQL files
 # ---------------------------------------------------------------------------
+
 
 class TestExtraNonSQLFiles:
     """Snapshot contains .tmp, .bak files alongside .sql — only .sql should be compared."""
@@ -322,6 +335,7 @@ class TestExtraNonSQLFiles:
 # 5. Partially written snapshot (interrupted mid-write)
 # ---------------------------------------------------------------------------
 
+
 class TestPartialSnapshot:
     """Snapshot has only a subset of model files — missing ones appear as 'added'."""
 
@@ -331,16 +345,22 @@ class TestPartialSnapshot:
         project_dir = tmp_path / "project"
         project_dir.mkdir()
 
-        manifest = _minimal_manifest({
-            "model_a": {"materialized": "table"},
-            "model_b": {"materialized": "table"},
-            "model_c": {"materialized": "view"},
-        })
-        _setup_target(project_dir, {
-            "model_a": "SELECT id FROM users",
-            "model_b": "SELECT id, name FROM orders",
-            "model_c": "SELECT event_id FROM events",
-        }, manifest)
+        manifest = _minimal_manifest(
+            {
+                "model_a": {"materialized": "table"},
+                "model_b": {"materialized": "table"},
+                "model_c": {"materialized": "view"},
+            }
+        )
+        _setup_target(
+            project_dir,
+            {
+                "model_a": "SELECT id FROM users",
+                "model_b": "SELECT id, name FROM orders",
+                "model_c": "SELECT event_id FROM events",
+            },
+            manifest,
+        )
 
         # Base snapshot: only model_a was written (interrupted mid-write)
         base_compiled = project_dir / ".dbt-plan" / "base" / "compiled"
@@ -366,6 +386,7 @@ class TestPartialSnapshot:
 # ---------------------------------------------------------------------------
 # 6. Re-snapshot after check (full lifecycle)
 # ---------------------------------------------------------------------------
+
 
 class TestReSnapshotAfterCheck:
     """Snapshot -> modify -> check (changes) -> re-snapshot -> check (no changes)."""
@@ -410,6 +431,7 @@ class TestReSnapshotAfterCheck:
 # ---------------------------------------------------------------------------
 # 7. Snapshot dir is a file, not a directory
 # ---------------------------------------------------------------------------
+
 
 class TestSnapshotDirIsFile:
     """`.dbt-plan/base` is a regular file instead of a directory."""
@@ -477,6 +499,7 @@ class TestSnapshotDirIsFile:
 # 8. Very old snapshot with completely different models
 # ---------------------------------------------------------------------------
 
+
 class TestCompletelyDifferentModels:
     """Base has A, B, C; current has D, E, F. All old removed, all new added."""
 
@@ -485,11 +508,13 @@ class TestCompletelyDifferentModels:
         project_dir.mkdir()
 
         # Base snapshot: models A, B, C
-        base_manifest = _minimal_manifest({
-            "model_a": {"materialized": "table"},
-            "model_b": {"materialized": "view"},
-            "model_c": {"materialized": "incremental", "on_schema_change": "ignore"},
-        })
+        base_manifest = _minimal_manifest(
+            {
+                "model_a": {"materialized": "table"},
+                "model_b": {"materialized": "view"},
+                "model_c": {"materialized": "incremental", "on_schema_change": "ignore"},
+            }
+        )
         base_compiled = project_dir / ".dbt-plan" / "base" / "compiled"
         base_compiled.mkdir(parents=True)
         (base_compiled / "model_a.sql").write_text("SELECT a1, a2 FROM src_a")
@@ -500,16 +525,22 @@ class TestCompletelyDifferentModels:
         )
 
         # Current: completely different models D, E, F
-        current_manifest = _minimal_manifest({
-            "model_d": {"materialized": "table"},
-            "model_e": {"materialized": "view"},
-            "model_f": {"materialized": "incremental", "on_schema_change": "sync_all_columns"},
-        })
-        _setup_target(project_dir, {
-            "model_d": "SELECT d1, d2 FROM src_d",
-            "model_e": "SELECT e1, e2 FROM src_e",
-            "model_f": "SELECT f1, f2 FROM src_f",
-        }, current_manifest)
+        current_manifest = _minimal_manifest(
+            {
+                "model_d": {"materialized": "table"},
+                "model_e": {"materialized": "view"},
+                "model_f": {"materialized": "incremental", "on_schema_change": "sync_all_columns"},
+            }
+        )
+        _setup_target(
+            project_dir,
+            {
+                "model_d": "SELECT d1, d2 FROM src_d",
+                "model_e": "SELECT e1, e2 FROM src_e",
+                "model_f": "SELECT f1, f2 FROM src_f",
+            },
+            current_manifest,
+        )
 
         exit_code = _do_check(_check_args(project_dir))
         captured = capsys.readouterr()
@@ -539,9 +570,11 @@ class TestCompletelyDifferentModels:
         project_dir = tmp_path / "project"
         project_dir.mkdir()
 
-        base_manifest = _minimal_manifest({
-            "old_model": {"materialized": "table"},
-        })
+        base_manifest = _minimal_manifest(
+            {
+                "old_model": {"materialized": "table"},
+            }
+        )
         base_compiled = project_dir / ".dbt-plan" / "base" / "compiled"
         base_compiled.mkdir(parents=True)
         (base_compiled / "old_model.sql").write_text("SELECT 1 AS id")
@@ -549,9 +582,11 @@ class TestCompletelyDifferentModels:
             json.dumps(base_manifest)
         )
 
-        current_manifest = _minimal_manifest({
-            "new_model": {"materialized": "table"},
-        })
+        current_manifest = _minimal_manifest(
+            {
+                "new_model": {"materialized": "table"},
+            }
+        )
         _setup_target(project_dir, {"new_model": "SELECT 2 AS id"}, current_manifest)
 
         _do_check(_check_args(project_dir))
@@ -572,6 +607,7 @@ class TestCompletelyDifferentModels:
 # ---------------------------------------------------------------------------
 # 9. Base manifest missing entirely (not corrupted, just absent)
 # ---------------------------------------------------------------------------
+
 
 class TestBaseManifestMissing:
     """Base snapshot has compiled SQL but no manifest.json at all."""
@@ -603,6 +639,7 @@ class TestBaseManifestMissing:
 # 10. Snapshot with binary files mixed in
 # ---------------------------------------------------------------------------
 
+
 class TestBinaryFilesInSnapshot:
     """Snapshot contains binary files (.pyc, .DS_Store) — should be ignored."""
 
@@ -618,9 +655,7 @@ class TestBinaryFilesInSnapshot:
         (base_compiled / "model_a.sql").write_text("SELECT id FROM users")
         # Add binary junk files
         (base_compiled / "__pycache__").mkdir()
-        (base_compiled / "__pycache__" / "something.pyc").write_bytes(
-            b"\x00\x01\x02\x03\xff\xfe"
-        )
+        (base_compiled / "__pycache__" / "something.pyc").write_bytes(b"\x00\x01\x02\x03\xff\xfe")
         (project_dir / ".dbt-plan" / "base" / "manifest.json").write_text(json.dumps(manifest))
 
         exit_code = _do_check(_check_args(project_dir))

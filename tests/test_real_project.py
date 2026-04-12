@@ -77,9 +77,7 @@ class TestRealManifestLoading:
 
     def test_three_model_nodes(self, real_manifest):
         """Manifest contains exactly 3 model nodes."""
-        model_nodes = {
-            k: v for k, v in real_manifest["nodes"].items() if k.startswith("model.")
-        }
+        model_nodes = {k: v for k, v in real_manifest["nodes"].items() if k.startswith("model.")}
         assert len(model_nodes) == 3
         assert "model.test_project.stg_events" in model_nodes
         assert "model.test_project.dim_apps" in model_nodes
@@ -315,9 +313,7 @@ class TestFullCheckPipeline:
         assert any("CREATE OR REPLACE VIEW" in op.operation for op in prediction.operations)
 
         # Downstream impact: stg_events → dim_apps, fct_events
-        downstream = find_downstream_batch(
-            [node.node_id], child_map
-        )
+        downstream = find_downstream_batch([node.node_id], child_map)
         assert len(downstream[node.node_id]) == 2
 
     def test_fct_events_sync_all_columns_destructive(self, real_manifest, tmp_path):
@@ -331,10 +327,10 @@ class TestFullCheckPipeline:
         # Modify fct_events: remove device_uuid column
         fct = current / "marts" / "fct_events.sql"
         fct.write_text(
-            '\n\nSELECT\n'
-            '    event_id,\n'
-            '    app_id,\n'
-            '    event_date,\n'
+            "\n\nSELECT\n"
+            "    event_id,\n"
+            "    app_id,\n"
+            "    event_date,\n"
             "    'unknown' AS source\n"
             'FROM "memory"."main"."stg_events"\n'
         )
@@ -396,10 +392,10 @@ class TestFullCheckPipeline:
         # Modify fct_events in current: remove device_uuid
         fct = target_compiled / "marts" / "fct_events.sql"
         fct.write_text(
-            '\n\nSELECT\n'
-            '    event_id,\n'
-            '    app_id,\n'
-            '    event_date,\n'
+            "\n\nSELECT\n"
+            "    event_id,\n"
+            "    app_id,\n"
+            "    event_date,\n"
             "    'unknown' AS source\n"
             'FROM "memory"."main"."stg_events"\n'
         )
@@ -449,12 +445,12 @@ class TestFullCheckPipeline:
         # Modify dim_apps: add a column (table materialization → always safe)
         dim = target_compiled / "marts" / "dim_apps.sql"
         dim.write_text(
-            'SELECT\n'
-            '    app_id,\n'
+            "SELECT\n"
+            "    app_id,\n"
             "    'App Name' AS app_name,\n"
             "    'active' AS status\n"
             'FROM "memory"."main"."stg_events"\n'
-            'GROUP BY 1\n'
+            "GROUP BY 1\n"
         )
 
         monkeypatch.setattr(
