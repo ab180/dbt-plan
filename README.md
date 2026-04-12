@@ -57,7 +57,7 @@ SAFE  dim_device (table)
 dbt-plan: 2 checked, 1 safe, 0 warning, 1 destructive, 1 cascade risk(s)
 ```
 
-## What Works (v0.3.3)
+## What Works (v0.3.5)
 
 | Feature | Status | Details |
 |---------|--------|---------|
@@ -77,7 +77,8 @@ dbt-plan: 2 checked, 1 safe, 0 warning, 1 destructive, 1 cascade risk(s)
 | CI setup | **Done** | `dbt-plan ci-setup` — generates GitHub Actions workflow |
 | Model filtering | **Done** | `--select model1,model2` / `ignore_models` in config |
 | Package filtering | **Done** | Auto-excludes dbt package models |
-| CI integration | **Done** | 209 tests, 93% coverage, CI workflow template |
+| BigQuery EXCEPT detection | **Done** | `SELECT * EXCEPT(col)` exclusions tracked in diff |
+| CI integration | **Done** | 335 tests, 93% coverage, CI workflow template |
 | Verbose mode | **Done** | `--verbose` / `-v` for debugging |
 
 ## Scope
@@ -108,11 +109,14 @@ dbt-plan is a **static analysis warning tool**, not a runtime simulator.
 |-----------------|------------------|---------------|--------|
 | table | any | `CREATE OR REPLACE TABLE` | SAFE |
 | view | any | `CREATE OR REPLACE VIEW` | SAFE |
+| ephemeral | any | (no physical object) | SAFE |
+| snapshot | any | `REVIEW REQUIRED` | WARNING |
 | incremental | ignore | no DDL | SAFE |
 | incremental | fail | build failure | WARNING |
 | incremental | append_new_columns | `ADD COLUMN` only | SAFE |
 | incremental | sync_all_columns | `ADD + DROP COLUMN` | DESTRUCTIVE if columns removed |
 | any | (model removed) | `MODEL REMOVED` | DESTRUCTIVE |
+| any | (unknown osc) | `UNKNOWN on_schema_change` | WARNING |
 
 ## CI Integration (GitHub Actions)
 
@@ -130,7 +134,7 @@ jobs:
         with: { fetch-depth: 0 }
 
       - run: pip install uv && uv sync
-      - run: pip install dbt-plan  # or: pip install git+https://github.com/ab180/dbt-plan@v0.2.0
+      - run: pip install dbt-plan
 
       # Compile and snapshot base branch
       - run: |

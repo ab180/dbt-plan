@@ -5,6 +5,34 @@ from pathlib import Path
 from dbt_plan.columns import extract_columns
 
 
+class TestLibraryReExports:
+    """Key symbols should be importable from the top-level package."""
+
+    def test_top_level_imports(self):
+        from dbt_plan import (  # noqa: F401
+            CheckResult,
+            Config,
+            DDLOperation,
+            DDLPrediction,
+            ModelDiff,
+            ModelNode,
+            Safety,
+            extract_columns,
+            predict_ddl,
+        )
+
+        assert Safety.SAFE is not None
+        assert callable(extract_columns)
+        assert callable(predict_ddl)
+
+    def test_submodule_access(self):
+        import dbt_plan
+
+        assert hasattr(dbt_plan, "extract_columns")
+        assert hasattr(dbt_plan, "predict_ddl")
+        assert hasattr(dbt_plan, "Safety")
+
+
 class TestExplicitColumns:
     def test_cte_with_explicit_final_select(self, explicit_columns_sql):
         """CTE chain → explicit final SELECT extracts all column names."""
@@ -191,3 +219,78 @@ class TestRealWorldFixtures:
         result = extract_columns(sql)
         # VARIANT access may or may not parse depending on dialect
         assert result is None or isinstance(result, list)
+
+
+class TestInvalidDialect:
+    """Invalid dialect should return None, not raise."""
+
+    def test_unknown_dialect_returns_none(self):
+        result = extract_columns("SELECT id FROM t", dialect="not_a_real_dialect")
+        assert result is None
+
+    def test_empty_dialect_uses_default(self):
+        """Empty string dialect falls through to sqlglot default (works fine)."""
+        result = extract_columns("SELECT id FROM t", dialect="")
+        assert result == ["id"]
+
+
+class TestStarExcept:
+    """BigQuery SELECT * EXCEPT detection."""
+
+    def test_star_except_single_column(self):
+        """SELECT * EXCEPT(revenue) → returns sentinel with excluded column."""
+        sql = "SELECT * EXCEPT(revenue) FROM t"
+        result = extract_columns(sql, dialect="bigquery")
+        assert result == ["* except(revenue)"]
+
+    def test_star_except_multiple_columns(self):
+        """SELECT * EXCEPT(revenue, cost) → returns sentinel with sorted columns."""
+        sql = "SELECT * EXCEPT(revenue, cost) FROM t"
+        result = extract_columns(sql, dialect="bigquery")
+        assert result == ["* except(cost, revenue)"]
+
+    def test_star_replace_returns_star(self):
+        """SELECT * REPLACE(expr AS col) → still returns ["*"] (can't enumerate)."""
+        sql = "SELECT * REPLACE(revenue * 100 AS revenue) FROM t"
+        result = extract_columns(sql, dialect="bigquery")
+        assert result == ["*"]
+
+    def test_star_except_with_replace_returns_except(self):
+        """SELECT * EXCEPT(cost) REPLACE(revenue*100 AS revenue) → except sentinel."""
+        sql = "SELECT * EXCEPT(cost) REPLACE(revenue * 100 AS revenue) FROM t"
+        result = extract_columns(sql, dialect="bigquery")
+        assert result == ["* except(cost)"]
+
+    def test_star_except_lowercased(self):
+        """Column names in EXCEPT are lowercased."""
+        sql = "SELECT * EXCEPT(Revenue, COST) FROM t"
+        result = extract_columns(sql, dialect="bigquery")
+        assert result == ["* except(cost, revenue)"]
+
+    def test_plain_star_bigquery(self):
+        """Plain SELECT * on bigquery still returns ["*"]."""
+        sql = "SELECT * FROM t"
+        result = extract_columns(sql, dialect="bigquery")
+        assert result == ["*"]
+
+
+class TestBOMHandling:
+    """UTF-8 BOM should not cause parse failures."""
+
+    def test_bom_prefix_stripped(self):
+        """BOM at start of SQL file should be ignored."""
+        sql = "\ufeffSELECT id, name FROM users"
+        result = extract_columns(sql)
+        assert result == ["id", "name"]
+
+    def test_bom_with_cte(self):
+        """BOM before WITH clause should be ignored."""
+        sql = "\ufeffWITH cte AS (SELECT 1 AS a) SELECT a FROM cte"
+        result = extract_columns(sql)
+        assert result == ["a"]
+
+    def test_no_bom_still_works(self):
+        """Regression: normal SQL without BOM still works."""
+        sql = "SELECT id FROM users"
+        result = extract_columns(sql)
+        assert result == ["id"]

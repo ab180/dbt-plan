@@ -52,7 +52,7 @@ src/dbt_plan/
 ├── manifest.py     # manifest.json 파싱, node index, downstream BFS
 ├── diff.py         # compiled SQL 디렉토리 비교 (캐싱)
 ├── formatter.py    # text (color) / github / json 출력
-└── cli.py          # CLI: snapshot, check, init, stats
+└── cli.py          # CLI: snapshot, check, init, stats, run, ci-setup
 ```
 
 ## Development

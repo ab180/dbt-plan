@@ -329,6 +329,51 @@ class TestCascadeImpactFormatting:
         data = json.loads(raw)
         assert "cascade_risks" not in data["summary"]
 
+    def test_downstream_list_truncated_when_many(self):
+        """Long downstream lists are truncated for readability."""
+        downstream = [f"model_{i}" for i in range(20)]
+        result = CheckResult(
+            predictions=[
+                DDLPrediction(
+                    model_name="parent",
+                    materialization="table",
+                    on_schema_change=None,
+                    safety=Safety.SAFE,
+                    operations=[DDLOperation("CREATE OR REPLACE TABLE")],
+                ),
+            ],
+            downstream_map={"parent": downstream},
+        )
+        # Text format
+        text = format_text(result, color=False)
+        assert "... and 15 more" in text
+        assert "(20 model(s))" in text
+        # No single line should exceed 120 chars (reasonable terminal width)
+        for line in text.splitlines():
+            assert len(line) <= 120, f"Line too long ({len(line)} chars): {line[:80]}..."
+
+        # GitHub format
+        gh = format_github(result)
+        assert "... and 15 more" in gh
+
+    def test_downstream_list_not_truncated_when_few(self):
+        """Short downstream lists show all names."""
+        downstream = ["model_a", "model_b", "model_c"]
+        result = CheckResult(
+            predictions=[
+                DDLPrediction(
+                    model_name="parent",
+                    materialization="table",
+                    on_schema_change=None,
+                    safety=Safety.SAFE,
+                ),
+            ],
+            downstream_map={"parent": downstream},
+        )
+        text = format_text(result, color=False)
+        assert "model_a, model_b, model_c" in text
+        assert "more" not in text
+
     def test_text_shows_build_failure(self):
         """Text format shows >> BUILD_FAILURE for incremental+fail downstream."""
         impact = DownstreamImpact(

@@ -91,7 +91,9 @@ class TestLoadManifest:
         data = {"nodes": {}, "child_map": {}}
         manifest_path.write_text(json.dumps(data))
         result = load_manifest(str(manifest_path))
-        assert result == data
+        assert result["nodes"] == {}
+        assert result["child_map"] == {}
+        assert result["metadata"] == {}
 
     def test_load_manifest_filters_extra_keys(self, tmp_path):
         """load_manifest keeps only nodes and child_map, discarding macros/sources/etc."""
@@ -106,18 +108,20 @@ class TestLoadManifest:
         }
         manifest_path.write_text(json.dumps(data))
         result = load_manifest(str(manifest_path))
-        assert set(result.keys()) == {"nodes", "child_map"}
+        assert set(result.keys()) == {"nodes", "child_map", "metadata"}
         assert "macros" not in result
         assert "sources" not in result
         assert "docs" not in result
-        assert "metadata" not in result
+        assert result["metadata"] == {"dbt_version": "1.7.0"}
 
     def test_load_manifest_missing_keys_default_empty(self, tmp_path):
         """load_manifest returns empty dicts when nodes/child_map are absent."""
         manifest_path = tmp_path / "manifest.json"
         manifest_path.write_text(json.dumps({"metadata": {}}))
         result = load_manifest(str(manifest_path))
-        assert result == {"nodes": {}, "child_map": {}}
+        assert result["nodes"] == {}
+        assert result["child_map"] == {}
+        assert result["metadata"] == {}
 
 
 class TestBuildNodeIndex:
@@ -391,3 +395,93 @@ class TestIncludePackages:
         index = build_node_index(manifest, include_packages=False)
         assert sorted(index.keys()) == ["a", "b"]
         assert "c" not in index
+
+    def test_metadata_project_name_used_over_heuristic(self):
+        """metadata.project_name is preferred over most-common-package heuristic."""
+        manifest = {
+            "metadata": {"project_name": "tiny_project"},
+            "nodes": {
+                # tiny_project has 1 model
+                "model.tiny_project.mine": {
+                    "name": "mine",
+                    "config": {"materialized": "table"},
+                },
+                # large_package has 3 models — heuristic would pick this
+                "model.large_package.a": {
+                    "name": "a",
+                    "config": {"materialized": "table"},
+                },
+                "model.large_package.b": {
+                    "name": "b",
+                    "config": {"materialized": "table"},
+                },
+                "model.large_package.c": {
+                    "name": "c",
+                    "config": {"materialized": "table"},
+                },
+            },
+        }
+        index = build_node_index(manifest, include_packages=False)
+        assert "mine" in index
+        assert "a" not in index
+
+
+class TestMaterializedNull:
+    def test_materialized_null_defaults_to_table(self):
+        """materialized: null in manifest should default to 'table'."""
+        manifest = {
+            "nodes": {
+                "model.p.m": {
+                    "name": "m",
+                    "config": {"materialized": None},
+                },
+            },
+        }
+        index = build_node_index(manifest)
+        assert index["m"].materialization == "table"
+
+    def test_find_node_by_name_materialized_null(self):
+        """find_node_by_name also defaults null materialized to 'table'."""
+        manifest = {
+            "nodes": {
+                "model.p.m": {
+                    "name": "m",
+                    "config": {"materialized": None},
+                },
+            },
+        }
+        node = find_node_by_name("m", manifest)
+        assert node is not None
+        assert node.materialization == "table"
+
+
+class TestCycleSafety:
+    def test_batch_with_cycle_no_self_reference(self):
+        """Cyclic child_map: a node should not appear in its own downstream."""
+        child_map = {
+            "model.proj.a": ["model.proj.b"],
+            "model.proj.b": ["model.proj.a"],
+        }
+        result = find_downstream_batch(["model.proj.a", "model.proj.b"], child_map)
+        assert "model.proj.a" not in result["model.proj.a"]
+        assert "model.proj.b" not in result["model.proj.b"]
+
+    def test_self_loop(self):
+        """Node pointing to itself should have empty downstream."""
+        child_map = {"model.proj.a": ["model.proj.a"]}
+        result = find_downstream_batch(["model.proj.a"], child_map)
+        assert result["model.proj.a"] == []
+
+
+class TestLoadManifestMetadata:
+    def test_metadata_preserved(self, tmp_path):
+        """load_manifest preserves metadata section."""
+        manifest = {
+            "metadata": {"project_name": "my_project", "dbt_version": "1.8.0"},
+            "nodes": {},
+            "child_map": {},
+        }
+        path = tmp_path / "manifest.json"
+        path.write_text(json.dumps(manifest))
+        result = load_manifest(path)
+        assert result["metadata"]["project_name"] == "my_project"
