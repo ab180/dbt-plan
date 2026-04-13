@@ -150,7 +150,7 @@ class TestNonSqlFilesFiltered:
         assert names == ["model_a"]
 
     def test_rglob_only_sql(self, tmp_path):
-        """rglob('*.sql') inside _find_compiled_dir should only find .sql files."""
+        """diff_compiled_dirs uses rglob('*.sql') which only matches .sql files."""
         target = tmp_path / "target"
         models = target / "compiled" / "proj" / "models"
         _make_sql(models / "real_model.sql")

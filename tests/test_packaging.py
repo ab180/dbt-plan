@@ -42,7 +42,12 @@ def _init_version() -> str:
 
 
 def _find_wheel() -> Path:
-    wheels = sorted(DIST.glob("dbt_plan-*.whl"))
+    """Find wheel matching current project version to avoid stale artifacts."""
+    version = _pyproject_version()
+    wheels = sorted(DIST.glob(f"dbt_plan-{version}-*.whl"))
+    if not wheels:
+        # Fall back to any wheel if version-matched not found
+        wheels = sorted(DIST.glob("dbt_plan-*.whl"))
     assert wheels, f"No wheel found in {DIST}. Run `uv build` first."
     return wheels[-1]
 
@@ -211,6 +216,7 @@ class TestCLIEntryPoint:
         assert callable(main)
 
     def test_cli_version_flag(self) -> None:
+        """CLI --version outputs the current version (tests dev install, not wheel)."""
         result = subprocess.run(
             [sys.executable, "-m", "dbt_plan.cli", "--version"],
             capture_output=True,

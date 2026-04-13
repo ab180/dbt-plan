@@ -667,7 +667,16 @@ def _do_run(args: argparse.Namespace) -> int:
         print(f"  [dbt-plan run] {msg}", file=sys.stderr)
 
     # 0. Verify compile command is available
-    compile_argv = shlex.split(compile_command)
+    try:
+        compile_argv = shlex.split(compile_command)
+    except ValueError as e:
+        print(
+            f"Error: invalid compile command: {e}\n"
+            f"  Command: {compile_command}\n"
+            "  Check for unmatched quotes in compile_command.",
+            file=sys.stderr,
+        )
+        return 2
     if not compile_argv:
         print(
             "Error: compile command is empty.\n"

@@ -586,21 +586,23 @@ class TestMigrationFootguns:
         assert sf_result is None or isinstance(sf_result, list)
         assert bq_result is None or isinstance(bq_result, list)
 
-    def test_parse_failure_never_returns_safe(self):
-        """Core safety invariant: parse failure -> None, never empty list.
+    def test_extract_columns_never_returns_empty_list(self):
+        """Core safety invariant: extract_columns never returns empty list [].
 
-        This is critical during migration: if the wrong dialect causes parse failure,
-        dbt-plan must return None so the caller escalates to REVIEW REQUIRED.
+        It returns None (parse failure / no SELECT) or a non-empty list.
+        An empty list would silently indicate "no columns" which is a false-safe risk.
         """
-        bad_sqls = [
-            "SELECT data:field::string AS val FROM t",  # Snowflake variant
-            "SELECT * EXCEPT(id) FROM t",  # BigQuery EXCEPT
+        sqls = [
+            "SELECT data:field::string AS val FROM t",
+            "SELECT * EXCEPT(id) FROM t",
+            "SELECT a, b FROM t",
+            "NOT VALID SQL",
+            "",
         ]
-        for sql in bad_sqls:
+        for sql in sqls:
             for dialect in ("snowflake", "bigquery", "postgres"):
                 result = extract_columns(sql, dialect=dialect)
-                # Must be None or a list with content — never empty list
                 assert result is None or (isinstance(result, list) and len(result) > 0), (
-                    f"extract_columns should never return empty list. "
+                    f"extract_columns returned empty list (false-safe risk). "
                     f"SQL: {sql!r}, dialect: {dialect}, result: {result}"
                 )

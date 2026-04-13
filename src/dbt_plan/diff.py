@@ -71,8 +71,12 @@ def diff_compiled_dirs(
             # Normalize line endings and strip BOM to avoid false diffs
             # from cross-platform editing (Windows CRLF vs Unix LF).
             try:
-                base_text = base_path.read_text().replace("\r\n", "\n").lstrip("\ufeff")
-                current_text = current_path.read_text().replace("\r\n", "\n").lstrip("\ufeff")
+                base_text = (
+                    base_path.read_text(encoding="utf-8").replace("\r\n", "\n").lstrip("\ufeff")
+                )
+                current_text = (
+                    current_path.read_text(encoding="utf-8").replace("\r\n", "\n").lstrip("\ufeff")
+                )
             except UnicodeDecodeError:
                 # Non-UTF-8 file: treat as modified with no cached SQL.
                 # Callers will see base_sql=None / current_sql=None and

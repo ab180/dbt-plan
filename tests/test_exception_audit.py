@@ -7,6 +7,7 @@ This test module systematically checks each try/except block for:
 """
 
 import json
+import os
 
 import pytest
 import sqlglot.errors
@@ -152,6 +153,10 @@ class TestManifestExceptionHandling:
         with pytest.raises(UnicodeDecodeError):
             load_manifest(p)
 
+    @pytest.mark.skipif(
+        os.getuid() == 0 if hasattr(os, "getuid") else False,
+        reason="chmod(0o000) has no effect when running as root",
+    )
     def test_permission_denied_raises_oserror(self, tmp_path):
         """PermissionError (subclass of OSError) is caught by callers."""
         p = tmp_path / "manifest.json"

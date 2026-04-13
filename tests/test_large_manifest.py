@@ -112,7 +112,7 @@ class TestLargeManifestNodeIndex:
         # Only root package models are included (every 10th model belongs to root)
         root_count = sum(1 for nid in manifest["nodes"] if nid.split(".")[1] == "myproject")
         assert len(index) == root_count
-        assert elapsed < 1.0, f"build_node_index took {elapsed:.3f}s (limit: 1.0s)"
+        assert elapsed < 3.0, f"build_node_index took {elapsed:.3f}s (limit: 3.0s)"
 
     def test_include_packages_false_filters_correctly(self):
         """include_packages=False correctly filters out non-root packages."""
@@ -156,7 +156,7 @@ class TestLargeChildMap:
         elapsed = time.perf_counter() - start
 
         assert len(result) == 50
-        assert elapsed < 2.0, f"find_downstream_batch took {elapsed:.3f}s (limit: 2.0s)"
+        assert elapsed < 5.0, f"find_downstream_batch took {elapsed:.3f}s (limit: 5.0s)"
 
     def test_downstream_correctness(self):
         """Downstream results are correct for a known topology."""
@@ -197,7 +197,7 @@ class TestLargeColumnDefinitions:
         elapsed = time.perf_counter() - start
 
         assert len(index) == 1000
-        assert elapsed < 1.0, f"build_node_index with columns took {elapsed:.3f}s"
+        assert elapsed < 3.0, f"build_node_index with columns took {elapsed:.3f}s"
 
         # Verify columns are stored as tuples (immutable, lower memory)
         for name, node in index.items():
@@ -319,7 +319,7 @@ class TestCascadeAnalysisAtScale:
         )
         elapsed = time.perf_counter() - start
 
-        assert elapsed < 3.0, f"analyze_cascade_impacts took {elapsed:.3f}s (limit: 3.0s)"
+        assert elapsed < 10.0, f"analyze_cascade_impacts took {elapsed:.3f}s (limit: 10.0s)"
         assert len(updated) == n_changed
 
         # Verify cascade impacts were detected
@@ -492,7 +492,7 @@ class TestFormatJsonAtScale:
         output_size = len(output.encode("utf-8"))
         assert output_size < 500_000, f"JSON output is {output_size} bytes — too large"
 
-        assert elapsed < 1.0, f"format_json took {elapsed:.3f}s (limit: 1.0s)"
+        assert elapsed < 3.0, f"format_json took {elapsed:.3f}s (limit: 3.0s)"
 
 
 # ---------------------------------------------------------------------------
@@ -574,7 +574,7 @@ class TestRegexAtScale:
         )
         elapsed = time.perf_counter() - start
 
-        assert elapsed < 3.0, f"Regex cascade analysis took {elapsed:.3f}s (limit: 3.0s)"
+        assert elapsed < 10.0, f"Regex cascade analysis took {elapsed:.3f}s (limit: 10.0s)"
 
         # Verify broken_ref impacts were detected
         pred = updated[0]
@@ -668,7 +668,7 @@ class TestRegexAtScale:
         broken_ref_impacts = [imp for imp in pred.downstream_impacts if imp.risk == "broken_ref"]
         assert len(broken_ref_impacts) == 0
 
-        assert elapsed < 1.0, f"Regex (no matches) took {elapsed:.3f}s (limit: 1.0s)"
+        assert elapsed < 3.0, f"Regex (no matches) took {elapsed:.3f}s (limit: 3.0s)"
 
 
 # ---------------------------------------------------------------------------

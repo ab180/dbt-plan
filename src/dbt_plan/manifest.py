@@ -51,7 +51,7 @@ def build_node_index(manifest: dict, *, include_packages: bool = False) -> dict[
     root_project = None
     if not include_packages:
         metadata = manifest.get("metadata") or {}
-        root_project = metadata.get("project_name") or metadata.get("project_id")
+        root_project = metadata.get("project_name")
         if not root_project:
             from collections import Counter
 

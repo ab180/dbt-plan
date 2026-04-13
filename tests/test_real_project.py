@@ -177,7 +177,13 @@ class TestRealCompiledSQL:
         assert "device_id" in cols
 
     def test_fct_events_columns(self):
-        """fct_events compiled SQL has expected columns."""
+        """fct_events compiled SQL has expected columns.
+
+        Tries duckdb dialect first (the project's adapter), falls back to snowflake
+        if duckdb parse fails. This fallback exists because sqlglot's DuckDB dialect
+        may not handle all compiled SQL patterns — if this fallback triggers,
+        investigate whether a duckdb-specific SQL pattern regressed.
+        """
         sql = (COMPILED_DIR / "marts" / "fct_events.sql").read_text()
         cols = extract_columns(sql, dialect="duckdb")
         if cols is None:

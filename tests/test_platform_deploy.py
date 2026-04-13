@@ -199,24 +199,17 @@ class TestIncludePackagesCascade:
         assert "utils_surrogate_key" in index
         assert "utils_date_spine" in index
 
-    def test_b_include_packages_unchanged_not_in_predictions(self, project_manifest, tmp_path):
-        """Package models ARE indexed but don't appear in predictions if unchanged."""
+    def test_b_include_packages_indexes_all(self, project_manifest, tmp_path):
+        """include_packages=True indexes both root and package models."""
         index = build_node_index(project_manifest, include_packages=True)
 
-        # Only stg_users changed
-        pred = predict_ddl(
-            model_name="stg_users",
-            materialization="table",
-            on_schema_change=None,
-            base_columns=["user_id", "email"],
-            current_columns=["user_id", "email", "phone"],
-        )
-
-        # Only one prediction (stg_users), no package model predictions
-        assert pred.model_name == "stg_users"
-        # Package models are in index but we only predict for changed models
-        assert "utils_surrogate_key" in index  # indexed
-        # (no prediction for utils_surrogate_key since it didn't change)
+        # Root models are indexed
+        assert "stg_users" in index
+        assert "int_users" in index
+        assert "fct_users" in index
+        # Package models are also indexed
+        assert "utils_surrogate_key" in index
+        assert "utils_date_spine" in index
 
     # -- Test C: Package model changed --
 
@@ -525,20 +518,21 @@ class TestMetadataVsHeuristic:
         assert "date_spine" in index
         assert "orders" not in index  # root project model gets excluded
 
-    def test_metadata_project_id_fallback(self):
-        """metadata.project_id is used when project_name is absent."""
+    def test_no_metadata_falls_back_to_heuristic(self):
+        """Without metadata.project_name, falls back to most-common-package heuristic."""
         manifest = {
             "nodes": {
                 "model.myproj.m1": {"name": "m1", "config": {"materialized": "table"}},
+                "model.myproj.m2": {"name": "m2", "config": {"materialized": "table"}},
                 "model.pkg.p1": {"name": "p1", "config": {"materialized": "table"}},
-                "model.pkg.p2": {"name": "p2", "config": {"materialized": "table"}},
             },
             "child_map": {},
-            "metadata": {"project_id": "myproj"},  # project_id, not project_name
+            "metadata": {},  # no project_name — uses heuristic (myproj has 2, pkg has 1)
         }
 
         index = build_node_index(manifest, include_packages=False)
         assert "m1" in index
+        assert "m2" in index
         assert "p1" not in index
 
     def test_include_packages_ignores_metadata(self):

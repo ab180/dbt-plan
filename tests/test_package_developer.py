@@ -158,7 +158,7 @@ class TestUnchangedPackageDependency:
     def test_unchanged_package_not_in_predictions(self, tmp_path):
         """Even though pkg_date_spine is in child_map, it doesn't appear
         in predictions when its SQL hasn't changed."""
-        _make_manifest(
+        manifest = _make_manifest(
             nodes={
                 "model.myproject.fct_events": {
                     "name": "fct_events",
@@ -189,7 +189,10 @@ class TestUnchangedPackageDependency:
         )
         assert pred.model_name == "fct_events"
         assert pred.columns_added == ["event_type"]
-        # pkg_date_spine is not in the prediction at all — it was never changed
+        # Verify package model is excluded from node_index when include_packages=False
+        index = build_node_index(manifest, include_packages=False)
+        assert "pkg_date_spine" not in index
+        assert "fct_events" in index
 
 
 # ===========================================================================
@@ -368,15 +371,16 @@ class TestPackageMoreModelsThanRoot:
         assert "fct_orders" in index
         assert "stg_users" in index
 
-    def test_metadata_project_id_fallback(self):
-        """metadata.project_id is used as fallback when project_name is absent."""
+    def test_no_metadata_uses_heuristic(self):
+        """Without metadata.project_name, falls back to most-common-package heuristic."""
         manifest = _make_manifest(
             nodes=self._nodes(),
-            metadata={"project_id": "tiny_app"},
+            metadata={},  # no project_name — heuristic picks the package with most models
         )
         index = build_node_index(manifest, include_packages=False)
-        assert "fct_orders" in index
-        assert len(index) == 1
+        # large_package has 5 models vs tiny_app's 1 → heuristic picks large_package
+        # This is the known limitation when metadata.project_name is absent
+        assert len(index) == 5  # large_package models win
 
 
 # ===========================================================================

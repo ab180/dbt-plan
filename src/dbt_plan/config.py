@@ -43,7 +43,7 @@ class Config:
             return
 
         try:
-            text = config_path.read_text()
+            text = config_path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             # OSError: permission denied, I/O error, etc.
             # UnicodeDecodeError: non-UTF-8 file content (not a subclass of OSError)
