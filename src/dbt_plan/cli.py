@@ -73,7 +73,10 @@ def _do_snapshot(args: argparse.Namespace) -> None:
                 file=sys.stderr,
             )
             sys.exit(2)
-        shutil.rmtree(base_dir)
+        if base_dir.is_file():
+            base_dir.unlink()
+        else:
+            shutil.rmtree(base_dir)
 
     # Save compiled SQL (symlinks=True prevents following symlinks outside project)
     compiled_dest = base_dir / "compiled"
@@ -115,6 +118,10 @@ _SAMPLE_CONFIG = """\
 # Disable colored terminal output (default: false)
 # no_color: false
 
+# Include models from dbt packages in analysis (default: false)
+# By default, only models from the root project are checked
+# include_packages: false
+
 # Command to compile dbt project (default: dbt compile)
 # Use this if you run dbt through a wrapper like uv, poetry, or a custom script
 # compile_command: uv run dbt compile
@@ -127,7 +134,11 @@ def _do_init(args: argparse.Namespace) -> None:
     config_path = project_dir / ".dbt-plan.yml"
 
     if config_path.exists():
-        print(f"Config already exists: {config_path}", file=sys.stderr)
+        print(
+            f"Config already exists: {config_path}\n"
+            "Edit it directly, or delete it and re-run 'dbt-plan init'.",
+            file=sys.stderr,
+        )
         sys.exit(2)
 
     config_path.write_text(_SAMPLE_CONFIG)
@@ -161,12 +172,16 @@ def _do_stats(args: argparse.Namespace) -> None:
     manifest_path = Path(args.manifest if args.manifest else str(target_dir / "manifest.json"))
 
     if not manifest_path.exists():
-        print(f"Error: manifest.json not found: {manifest_path}", file=sys.stderr)
+        print(
+            f"Error: manifest.json not found: {manifest_path}\n"
+            "Run 'dbt compile' to generate it, or use --manifest to specify a custom path.",
+            file=sys.stderr,
+        )
         sys.exit(2)
 
     try:
         manifest = load_manifest(manifest_path)
-    except (json.JSONDecodeError, OSError) as e:
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as e:
         print(f"Error: Could not parse manifest.json: {e}", file=sys.stderr)
         sys.exit(2)
 
@@ -176,12 +191,12 @@ def _do_stats(args: argparse.Namespace) -> None:
     incremental_osc: Counter[str] = Counter()
     total = 0
 
-    for nid, node in manifest.get("nodes", {}).items():
+    for nid, node in (manifest.get("nodes") or {}).items():
         if not nid.startswith("model."):
             continue
         total += 1
-        config = node.get("config", {})
-        mat = config.get("materialized", "table")
+        config = node.get("config") or {}
+        mat = config.get("materialized") or "table"
         osc = config.get("on_schema_change") or "ignore"
         mat_counts[mat] += 1
         osc_counts[osc] += 1
@@ -217,7 +232,7 @@ def _do_stats(args: argparse.Namespace) -> None:
     # Count manifest column fallback availability
     manifest_fallback = 0
     if sql_count:
-        for nid, node in manifest.get("nodes", {}).items():
+        for nid, node in (manifest.get("nodes") or {}).items():
             if nid.startswith("model.") and node.get("columns"):
                 manifest_fallback += 1
 
@@ -329,7 +344,7 @@ def _do_check(args: argparse.Namespace) -> int:
     _log(f"Manifest: {manifest_path}")
     try:
         model_diffs = diff_compiled_dirs(base_compiled, current_compiled)
-    except ValueError as e:
+    except (ValueError, FileNotFoundError) as e:
         print(f"Error: {e}", file=sys.stderr)
         return 2
     _log(f"Found {len(model_diffs)} changed model(s)")
@@ -369,7 +384,9 @@ def _do_check(args: argparse.Namespace) -> int:
     # 2. Load manifests (current + base for removed model fallback)
     try:
         manifest = load_manifest(manifest_path)
-    except (json.JSONDecodeError, OSError) as e:
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as e:
+        # JSONDecodeError: invalid JSON; OSError: file I/O error;
+        # UnicodeDecodeError: non-UTF-8 file (not a subclass of OSError)
         print(f"Error: Could not parse manifest.json: {e}", file=sys.stderr)
         return 2
 
@@ -378,13 +395,13 @@ def _do_check(args: argparse.Namespace) -> int:
     if base_manifest_path.exists():
         try:
             base_manifest = load_manifest(base_manifest_path)
-        except (json.JSONDecodeError, OSError):
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
             pass  # base manifest is best-effort
 
-    child_map = manifest.get("child_map", {})
+    child_map = manifest.get("child_map") or {}
     if base_manifest:
         # Merge base child_map for removed models
-        for k, v in base_manifest.get("child_map", {}).items():
+        for k, v in (base_manifest.get("child_map") or {}).items():
             if k not in child_map:
                 child_map[k] = v
 
@@ -606,7 +623,11 @@ def _do_ci_setup(args: argparse.Namespace) -> None:
     workflow_path = workflows_dir / "dbt-plan.yml"
 
     if workflow_path.exists():
-        print(f"Workflow already exists: {workflow_path}", file=sys.stderr)
+        print(
+            f"Workflow already exists: {workflow_path}\n"
+            "Edit it directly, or delete it and re-run 'dbt-plan ci-setup'.",
+            file=sys.stderr,
+        )
         sys.exit(2)
 
     workflows_dir.mkdir(parents=True, exist_ok=True)
@@ -646,7 +667,24 @@ def _do_run(args: argparse.Namespace) -> int:
         print(f"  [dbt-plan run] {msg}", file=sys.stderr)
 
     # 0. Verify compile command is available
-    compile_argv = shlex.split(compile_command)
+    try:
+        compile_argv = shlex.split(compile_command)
+    except ValueError as e:
+        print(
+            f"Error: invalid compile command: {e}\n"
+            f"  Command: {compile_command}\n"
+            "  Check for unmatched quotes in compile_command.",
+            file=sys.stderr,
+        )
+        return 2
+    if not compile_argv:
+        print(
+            "Error: compile command is empty.\n"
+            "  Set compile_command in .dbt-plan.yml or DBT_PLAN_COMPILE_COMMAND env var.\n"
+            "  Examples: 'dbt compile', 'uv run dbt compile', 'poetry run dbt compile'",
+            file=sys.stderr,
+        )
+        return 2
     try:
         result = subprocess.run([compile_argv[0], "--version"], capture_output=True)
     except FileNotFoundError:

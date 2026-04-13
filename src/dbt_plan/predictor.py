@@ -166,6 +166,44 @@ def predict_ddl(
             operations=[DDLOperation("REVIEW REQUIRED (SELECT *)")],
         )
 
+    # SELECT * EXCEPT(...) sentinel — columns excluded but full set unknown
+    base_is_star_except = len(base_columns) == 1 and base_columns[0].startswith("* except(")
+    current_is_star_except = len(current_columns) == 1 and current_columns[0].startswith(
+        "* except("
+    )
+    if base_is_star_except or current_is_star_except:
+        # Both are * except with identical exclusions → no change, still WARNING
+        # because we can't enumerate the full column set
+        if base_is_star_except and current_is_star_except:
+            if base_columns[0] == current_columns[0]:
+                return DDLPrediction(
+                    model_name=model_name,
+                    materialization=materialization,
+                    on_schema_change=osc,
+                    safety=Safety.WARNING,
+                    operations=[
+                        DDLOperation("REVIEW REQUIRED (SELECT * EXCEPT — same exclusions)")
+                    ],
+                )
+            else:
+                return DDLPrediction(
+                    model_name=model_name,
+                    materialization=materialization,
+                    on_schema_change=osc,
+                    safety=Safety.WARNING,
+                    operations=[
+                        DDLOperation("REVIEW REQUIRED (SELECT * EXCEPT — exclusions changed)")
+                    ],
+                )
+        # One side is * except, other is explicit or plain * → column diff impossible
+        return DDLPrediction(
+            model_name=model_name,
+            materialization=materialization,
+            on_schema_change=osc,
+            safety=Safety.WARNING,
+            operations=[DDLOperation("REVIEW REQUIRED (SELECT * EXCEPT — column removal likely)")],
+        )
+
     # Detect duplicate column names (e.g., from JOINs without aliases)
     # Duplicates make set diff unreliable — we can't determine the real schema change
     base_has_dupes = len(base_columns) != len(set(base_columns))

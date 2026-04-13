@@ -43,9 +43,14 @@ class Config:
             return
 
         try:
-            text = config_path.read_text()
-        except OSError:
+            text = config_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            # OSError: permission denied, I/O error, etc.
+            # UnicodeDecodeError: non-UTF-8 file content (not a subclass of OSError)
             return
+
+        # Strip BOM that some editors prepend to UTF-8 files
+        text = text.lstrip("\ufeff")
 
         for line in text.splitlines():
             line = line.strip()

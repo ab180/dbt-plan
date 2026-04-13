@@ -33,8 +33,15 @@ def diff_compiled_dirs(
     base_dir = Path(base_dir)
     current_dir = Path(current_dir)
 
+    if not base_dir.is_dir():
+        raise FileNotFoundError(f"Base directory does not exist: {base_dir}")
+    if not current_dir.is_dir():
+        raise FileNotFoundError(f"Current directory does not exist: {current_dir}")
+
     base_models: dict[str, Path] = {}
     for f in base_dir.rglob("*.sql"):
+        if f.is_symlink():
+            continue  # Skip symlinks to prevent reading files outside the project
         if f.stem in base_models:
             raise ValueError(
                 f"Duplicate model name '{f.stem}' in {base_dir}: {base_models[f.stem]} vs {f}"
@@ -43,6 +50,8 @@ def diff_compiled_dirs(
 
     current_models: dict[str, Path] = {}
     for f in current_dir.rglob("*.sql"):
+        if f.is_symlink():
+            continue  # Skip symlinks to prevent reading files outside the project
         if f.stem in current_models:
             raise ValueError(
                 f"Duplicate model name '{f.stem}' in {current_dir}: "
@@ -58,25 +67,26 @@ def diff_compiled_dirs(
         current_path = current_models.get(name)
 
         if base_path and current_path:
-            # Fast path: different file sizes → definitely modified
-            definitely_different = base_path.stat().st_size != current_path.stat().st_size
-            if definitely_different:
-                # Read content eagerly so callers don't re-read
-                base_text = base_path.read_text()
-                current_text = current_path.read_text()
+            # Read content eagerly so callers don't re-read.
+            # Normalize line endings and strip BOM to avoid false diffs
+            # from cross-platform editing (Windows CRLF vs Unix LF).
+            try:
+                base_text = (
+                    base_path.read_text(encoding="utf-8").replace("\r\n", "\n").lstrip("\ufeff")
+                )
+                current_text = (
+                    current_path.read_text(encoding="utf-8").replace("\r\n", "\n").lstrip("\ufeff")
+                )
+            except UnicodeDecodeError:
+                # Non-UTF-8 file: treat as modified with no cached SQL.
+                # Callers will see base_sql=None / current_sql=None and
+                # produce REVIEW REQUIRED — consistent with the false-safe-ban rule.
+                diffs.append(ModelDiff(name, "modified", base_path, current_path))
+                continue
+            if base_text != current_text:
                 diffs.append(
                     ModelDiff(name, "modified", base_path, current_path, base_text, current_text)
                 )
-            else:
-                # Same size: must compare content
-                base_text = base_path.read_text()
-                current_text = current_path.read_text()
-                if base_text != current_text:
-                    diffs.append(
-                        ModelDiff(
-                            name, "modified", base_path, current_path, base_text, current_text
-                        )
-                    )
         elif current_path and not base_path:
             diffs.append(ModelDiff(name, "added", None, current_path))
         elif base_path and not current_path:

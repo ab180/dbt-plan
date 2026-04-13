@@ -25,6 +25,20 @@ _RESET = "\033[0m"
 _BOLD = "\033[1m"
 
 
+_MAX_DOWNSTREAM_NAMES = 5  # Truncate long downstream lists for readability
+
+
+def _format_downstream_line(downstream: list[str]) -> str:
+    """Format downstream model list, truncating if too long."""
+    total = len(downstream)
+    if total <= _MAX_DOWNSTREAM_NAMES:
+        names = ", ".join(downstream)
+    else:
+        shown = ", ".join(downstream[:_MAX_DOWNSTREAM_NAMES])
+        names = f"{shown}, ... and {total - _MAX_DOWNSTREAM_NAMES} more"
+    return f"  Downstream: {names} ({total} model(s))"
+
+
 @dataclass
 class CheckResult:
     """Full result of a dbt-plan check."""
@@ -68,8 +82,7 @@ def format_text(result: CheckResult, *, color: bool | None = None) -> str:
                 lines.append(f"  {op.operation}")
         downstream = result.downstream_map.get(pred.model_name, [])
         if downstream:
-            names = ", ".join(downstream)
-            lines.append(f"  Downstream: {names} ({len(downstream)} model(s))")
+            lines.append(_format_downstream_line(downstream))
         # Cascade impacts
         for impact in pred.downstream_impacts:
             risk_label = _colored(
@@ -131,8 +144,7 @@ def format_github(result: CheckResult) -> str:
                 lines.append(f"- {op.operation}")
         downstream = result.downstream_map.get(pred.model_name, [])
         if downstream:
-            names = ", ".join(downstream)
-            lines.append(f"- Downstream: {names} ({len(downstream)} model(s))")
+            lines.append("- " + _format_downstream_line(downstream).lstrip())
         for impact in pred.downstream_impacts:
             risk_icon = "\u26a0\ufe0f" if impact.risk == "build_failure" else "\U0001f534"
             lines.append(

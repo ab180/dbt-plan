@@ -189,3 +189,10 @@ class TestEnvVars:
         config_path.mkdir()  # directory, not a file → OSError on read
         config = Config.load(tmp_path)
         assert config.dialect == "snowflake"  # default
+
+    def test_bom_prefixed_config_file(self, tmp_path):
+        """BOM at start of config file should not corrupt the first key."""
+        (tmp_path / ".dbt-plan.yml").write_bytes(b"\xef\xbb\xbfdialect: postgres\nformat: json\n")
+        config = Config.load(tmp_path)
+        assert config.dialect == "postgres"
+        assert config.format == "json"

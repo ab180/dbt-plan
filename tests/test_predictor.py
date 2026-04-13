@@ -279,6 +279,92 @@ class TestSelectStarWildcard:
         assert result.safety == Safety.WARNING
 
 
+class TestStarExceptPredictor:
+    """Predictor handles SELECT * EXCEPT sentinel values."""
+
+    def test_star_except_current_warning(self):
+        """base=["*"], current=["* except(revenue)"] → WARNING (column likely removed)."""
+        result = predict_ddl(
+            model_name="m",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            base_columns=["*"],
+            current_columns=["* except(revenue)"],
+        )
+        assert result.safety == Safety.WARNING
+        assert any("SELECT *" in op.operation for op in result.operations)
+
+    def test_star_except_base_warning(self):
+        """base=["* except(revenue)"], current=explicit → WARNING."""
+        result = predict_ddl(
+            model_name="m",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            base_columns=["* except(revenue)"],
+            current_columns=["a", "b"],
+        )
+        assert result.safety == Safety.WARNING
+        assert any("EXCEPT" in op.operation for op in result.operations)
+
+    def test_star_except_both_same_exclusions(self):
+        """Both sides same EXCEPT → WARNING (same exclusions, can't enumerate)."""
+        result = predict_ddl(
+            model_name="m",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            base_columns=["* except(revenue)"],
+            current_columns=["* except(revenue)"],
+        )
+        assert result.safety == Safety.WARNING
+        assert any("same exclusions" in op.operation for op in result.operations)
+
+    def test_star_except_both_different_exclusions(self):
+        """Different EXCEPT sets → WARNING (exclusions changed)."""
+        result = predict_ddl(
+            model_name="m",
+            materialization="incremental",
+            on_schema_change="sync_all_columns",
+            base_columns=["* except(old_col)"],
+            current_columns=["* except(new_col)"],
+        )
+        assert result.safety == Safety.WARNING
+        assert any("exclusions changed" in op.operation for op in result.operations)
+
+    def test_star_except_vs_explicit_warning(self):
+        """base=["* except(col)"], current=explicit columns → WARNING."""
+        result = predict_ddl(
+            model_name="m",
+            materialization="incremental",
+            on_schema_change="fail",
+            base_columns=["* except(old_col)"],
+            current_columns=["a", "b", "c"],
+        )
+        assert result.safety == Safety.WARNING
+        assert any("column removal likely" in op.operation for op in result.operations)
+
+    def test_star_except_table_safe(self):
+        """Table materialization with * except → still SAFE (CREATE OR REPLACE)."""
+        result = predict_ddl(
+            model_name="m",
+            materialization="table",
+            on_schema_change=None,
+            base_columns=["a", "b"],
+            current_columns=["* except(revenue)"],
+        )
+        assert result.safety == Safety.SAFE
+
+    def test_star_except_ignore_safe(self):
+        """Incremental + ignore with * except → SAFE (no DDL)."""
+        result = predict_ddl(
+            model_name="m",
+            materialization="incremental",
+            on_schema_change="ignore",
+            base_columns=["a", "b"],
+            current_columns=["* except(revenue)"],
+        )
+        assert result.safety == Safety.SAFE
+
+
 class TestEphemeralAndUnknown:
     def test_ephemeral_safe(self):
         """Ephemeral model → SAFE, no operations."""
